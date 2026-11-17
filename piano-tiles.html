@@ -1,0 +1,809 @@
+<title>건반 소나기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+/* Layout: one-screen app — mahogany piano case framing a 4-lane ivory keybed; overlays sit on the keybed. */
+:root {
+  --wood: #2a1613;
+  --wood-2: #3b211c;
+  --brass: #d6b062;
+  --ivory: #f6f1e5;
+  --ivory-2: #e7dfcd;
+  --ebony: #19161a;
+  --felt: #9c2f27;
+  --text: #f6f1e5;
+  --muted: #c9b8a6;
+  --display: "Gowun Batang", "Noto Serif KR", "Apple SD Gothic Neo", serif;
+  --ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body {
+  background: radial-gradient(120% 80% at 50% 0%, var(--wood-2), var(--wood) 70%);
+  background-color: var(--wood);
+  color: var(--text);
+  font-family: var(--ui);
+  word-break: keep-all;
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  box-sizing: border-box;
+  height: 100%;
+  max-width: 500px;
+  transition: max-width .2s;
+  margin: 0 auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+}
+.app:fullscreen { background: var(--wood); max-width: none; padding-inline: max(16px, calc((100vw - 560px) / 2)); }
+.bar { display: flex; align-items: center; gap: 12px; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 1.35rem; letter-spacing: .02em; color: var(--brass); }
+.song { flex: 1; min-width: 0; font-size: .85rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+button {
+  font: inherit; color: var(--text); cursor: pointer;
+  background: transparent; border: 1px solid color-mix(in srgb, var(--brass) 55%, transparent);
+  border-radius: 999px; padding: 6px 14px; font-size: .85rem;
+}
+button:hover { background: color-mix(in srgb, var(--brass) 14%, transparent); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.stage {
+  position: relative; flex: 1; min-height: 0;
+  border-radius: 4px; overflow: hidden;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brass) 45%, transparent), 0 18px 40px rgba(0,0,0,.45);
+  background: var(--ivory);
+}
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  padding: 24px; text-align: center;
+  overflow-y: auto; justify-content: safe center;
+  background: color-mix(in srgb, var(--wood) 88%, transparent);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.overlay h1, .overlay h2 { margin: 0; font-family: var(--display); font-weight: 700; text-wrap: balance; }
+.overlay h1 { font-size: 2.3rem; color: var(--brass); }
+.overlay h2 { font-size: 1.6rem; }
+.lede { margin: 0; color: var(--muted); line-height: 1.6; max-width: 30ch; font-size: .95rem; }
+.eyebrow { font-size: .72rem; letter-spacing: .14em; color: var(--muted); }
+.app.wide { max-width: 960px; }
+.tabs { display: inline-flex; padding: 3px; gap: 3px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent); }
+.tabs button { border: 0; padding: 6px 18px; }
+.tabs button[aria-pressed="true"] { background: var(--brass); color: var(--wood); font-weight: 600; }
+.songs { display: grid; gap: 6px; width: 100%; max-width: 340px; }
+.song-btn {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px;
+  text-align: left; border-radius: 6px; padding: 8px 14px;
+  background: color-mix(in srgb, var(--wood-2) 80%, transparent);
+}
+.song-btn .t { font-family: var(--display); font-weight: 700; font-size: 1.02rem; }
+.song-btn .b { grid-column: 1; font-size: .78rem; color: var(--muted); }
+.song-btn .best { grid-row: 1 / span 2; grid-column: 2; font-size: .8rem; color: var(--brass); font-variant-numeric: tabular-nums; }
+.big { font-family: var(--display); font-weight: 700; font-size: 4.5rem; line-height: 1; color: var(--brass); font-variant-numeric: tabular-nums; }
+.stats { display: flex; gap: 24px; justify-content: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { display: block; color: var(--text); font-size: 1.1rem; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.primary { background: var(--brass); color: var(--wood); border-color: var(--brass); font-weight: 600; padding: 10px 22px; font-size: 1rem; }
+.primary:hover { background: color-mix(in srgb, var(--brass) 85%, white); }
+.hint { text-align: center; font-size: .75rem; color: var(--muted); letter-spacing: .04em; }
+kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 50%, transparent); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: .7rem; }
+@media (prefers-reduced-motion: reduce) { .overlay { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">건반 소나기</div>
+    <div class="song" id="songLabel">곡을 골라 주세요</div>
+    <button id="fsBtn" type="button" hidden>전체 화면</button>
+    <button id="menuBtn" type="button">곡 선택</button>
+  </header>
+  <main class="stage" id="stage">
+    <canvas id="cv" tabindex="0" aria-label="게임 화면"></canvas>
+    <div class="overlay" id="menu">
+      <div class="eyebrow" id="menuEyebrow">4 LANES · BLACK KEYS ONLY</div>
+      <h1>건반 소나기</h1>
+      <div class="row">
+      <div class="tabs" role="group" aria-label="게임 종류">
+        <button type="button" id="tabPiano" aria-pressed="true">피아노</button>
+        <button type="button" id="tabDrum" aria-pressed="false">드럼</button>
+      </div>
+      <div class="tabs" role="group" aria-label="인원">
+        <button type="button" id="tabSolo" aria-pressed="true">1인</button>
+        <button type="button" id="tabDuo" aria-pressed="false">2인 함께</button>
+      </div>
+      </div>
+      <p class="lede" id="menuLede">떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.</p>
+      <div class="songs" id="songs"></div>
+    </div>
+    <div class="overlay" id="over" hidden>
+      <div class="eyebrow" id="overReason">놓쳤어요</div>
+      <div class="big" id="overScore">0</div>
+      <div class="stats">
+        <div><b id="overBest">0</b>최고 기록</div>
+        <div><b id="overBpm">0</b>최고 템포 (♩)</div>
+      </div>
+      <div class="row">
+        <button class="primary" id="retryBtn" type="button">다시 연주</button>
+        <button id="changeBtn" type="button">곡 바꾸기</button>
+      </div>
+    </div>
+  </main>
+  <div class="hint" id="hintDuo" hidden>왼쪽 반주 <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> · 오른쪽 멜로디 <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>;</kbd> · 화면은 각자 자기 쪽을 탭 · <kbd>Esc</kbd> 곡 선택</div>
+  <div class="hint" id="hintKeys">탭 · 클릭 · 키보드 <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd> 또는 <kbd>1</kbd>–<kbd>4</kbd> · <kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> · <kbd>Esc</kbd> 곡 선택</div>
+</div>
+
+<script>
+(() => {
+  // Public-domain melodies as MIDI note numbers (60 = C4).
+  // Original boom-bap loop: every tile is one 8th-note step.
+  // d = drums (k kick, s snare, h hat), n = tongue-drum note, b = 808 bass.
+  function alleyBeat() {
+    const groove = ['kh','h','sh','h','kh','k','sh','h'];
+    const fill   = ['kh','h','sh','h','kh','s','s','sh'];
+    const bars = [
+      { n: [69,null,72,null,76,74,72,null], b: [45,null,null,null,45,48,null,null], d: groove },
+      { n: [67,null,69,null,72,null,69,67], b: [43,null,null,null,43,null,40,null], d: groove },
+      { n: [69,null,72,null,76,74,79,76],   b: [45,null,null,null,45,48,null,null], d: groove },
+      { n: [76,74,72,null,69,null,67,69],   b: [41,null,null,null,43,null,45,null], d: fill },
+    ];
+    return bars.flatMap(bar => bar.d.map((d, i) => ({ d, n: bar.n[i], b: bar.b[i] })));
+  }
+
+  // Original French-house loop: four-on-the-floor, octave-bouncing bass,
+  // filtered saw chord stabs (c = chord). Em7 → A7 → Cmaj7 → Bm7.
+  function robotDisco() {
+    const four = ['k','h','ks','h','k','h','ks','h'];
+    const fill = ['k','h','ks','h','ks','s','ks','s'];
+    const CH = { Em7: [64,67,71,74], A7: [64,67,69,73], C: [64,67,71,72], Bm7: [62,66,69,74] };
+    const stab = [0,1,0,1,0,0,1,1];
+    const bars = [
+      { c: CH.Em7, b: [40,52,40,52,40,52,43,45], d: four },
+      { c: CH.A7,  b: [45,57,45,57,45,57,43,45], d: four },
+      { c: CH.C,   b: [48,60,48,60,48,60,47,45], d: four },
+      { c: CH.Bm7, b: [47,59,47,59,47,59,50,52], d: four },
+      { c: CH.Em7, b: [40,52,40,52,40,52,43,45], d: four, n: [null,null,79,null,76,null,74,76] },
+      { c: CH.A7,  b: [45,57,45,57,45,57,43,45], d: four, n: [null,null,73,null,71,null,69,null] },
+      { c: CH.C,   b: [48,60,48,60,48,60,47,45], d: four, n: [null,null,72,null,71,null,67,null] },
+      { c: CH.Bm7, b: [47,59,47,59,47,59,50,52], d: fill, n: [69,null,71,null,74,null,null,null] },
+    ];
+    return bars.flatMap(bar => bar.d.map((d, i) => ({ d, b: bar.b[i], c: stab[i] ? bar.c : null, n: bar.n ? bar.n[i] : null })));
+  }
+
+  const SONGS = [
+    { id: 'twinkle', name: '작은 별', by: '프랑스 민요 · 입문', start: 3.0, notes:
+      [60,60,67,67,69,69,67, 65,65,64,64,62,62,60, 67,67,65,65,64,64,62, 67,67,65,65,64,64,62, 60,60,67,67,69,69,67, 65,65,64,64,62,62,60] },
+    { id: 'birthday', name: '생일 축하합니다', by: '힐 자매 · 입문', start: 3.0, notes:
+      [67,67,69,67,72,71, 67,67,69,67,74,72, 67,67,79,76,72,71,69, 77,77,76,72,74,72] },
+    { id: 'arirang', name: '아리랑', by: '한국 민요 · 쉬움', start: 3.1, notes:
+      [67,69,67,69,72,74,72,74,76,74,72,69,72,74, 74,72,69,67,69,67,69,72,74,72,69,72,
+       79,79,76,74,72,74,76,74,72,69,72,74, 74,72,69,67,69,67,69,72,74,72,69,72] },
+    { id: 'jingle', name: '징글벨', by: '피어폰트 · 쉬움', start: 3.3, notes:
+      [64,64,64,64,64,64,64,67,60,62,64, 65,65,65,65,65,64,64,64,64,62,62,64,62,67,
+       64,64,64,64,64,64,64,67,60,62,64, 65,65,65,65,65,64,64,64,67,67,65,62,60] },
+    { id: 'ode', name: '환희의 송가', by: '베토벤 · 보통', start: 3.4, notes:
+      [64,64,65,67,67,65,64,62,60,60,62,64,64,62,62, 64,64,65,67,67,65,64,62,60,60,62,64,62,60,60,
+       62,62,64,60,62,64,65,64,60,62,64,65,64,62,60,62,55, 64,64,65,67,67,65,64,62,60,60,62,64,62,60,60] },
+    { id: 'minuet', name: '미뉴에트 G장조', by: '페촐트 · 보통', start: 3.5, notes:
+      [74,67,69,71,72,74,67,67, 76,72,74,76,78,79,67,67, 72,74,72,71,69,71,72,71,69,67, 66,67,69,71,67,71,69,
+       74,67,69,71,72,74,67,67, 76,72,74,76,78,79,67,67, 72,74,72,71,69,71,72,71,69,67, 69,71,69,67,66,67] },
+    { id: 'canon', name: '캐논', by: '파헬벨 · 보통', start: 3.6, notes:
+      [78,76,74,73,71,69,71,73, 74,73,71,69,67,66,67,64, 74,66,69,67,66,62,66,64, 62,59,62,69,67,71,69,67] },
+    { id: 'alley', name: '골목 비트', by: '오리지널 힙합 · 보통', start: 3.3, steps: alleyBeat() },
+    { id: 'robot', name: '로봇 디스코', by: '오리지널 프렌치 하우스 · 보통', start: 3.8, steps: robotDisco() },
+    { id: 'elise', name: '엘리제를 위하여', by: '베토벤 · 도전', start: 3.9, notes:
+      [76,75,76,75,76,71,74,72,69, 60,64,69,71, 64,68,71,72, 64,76,75,76,75,76,71,74,72,69, 60,64,69,71, 64,72,71,69] },
+    { id: 'turkish', name: '터키 행진곡', by: '모차르트 · 고수', start: 4.4, notes:
+      [71,69,68,69,72, 74,72,71,72,76, 77,76,75,76,83,81,80,81,83,81,80,81,84, 81,84,83,81,79,81,83,81,79,81,83,81,79,78,76] },
+    { id: 'frenzy', name: '폭주 에튀드', by: '오리지널 · 지옥', start: 5.5, max: 14, ramp: 0.04, notes:
+      [64,66,67,69,71,72,74,76,78,79,81,83,84,86,88, 86,84,83,81,79,78,76,74,72,71,69,67,66,64,
+       52,59,64,67,71,76,79,83, 81,76,72,69,64,60,57,52, 54,59,63,66,71,75,78,83, 81,78,75,71,66,63,59,54,
+       76,75,76,77,78,79,80,81,82,83,84,85,86,87,88,
+       64,76,64,76,67,79,67,79,71,83,71,83,76,88,76,88,
+       88,83,79,76,71,67,64,59,55,52,40] },
+    { id: 'bumblebee', name: '왕벌의 비행', by: '림스키코르사코프 · 지옥', start: 5.5, max: 13, ramp: 0.035, notes:
+      [88,87,86,85,86,85,84,83, 84,83,82,81,80,79,78,77, 76,75,74,73,74,73,72,71, 72,71,70,69,68,67,66,65,
+       69,68,67,66,65,70,69,68, 69,68,67,66,65,70,69,68, 69,68,67,66,67,66,65,64, 65,64,63,62,61,62,63,64,
+       81,80,79,78,77,82,81,80, 81,80,79,78,77,82,81,80, 81,80,79,78,79,78,77,76, 77,76,75,74,73,74,75,76] },
+    { id: 'moonlight3', name: '월광 소나타 3악장', by: '베토벤 · 지옥', start: 5.0, max: 12, ramp: 0.035, notes:
+      [44,49,52,56,61,64,68,73,76,76, 49,52,56,61,64,68,73,76,80,80, 45,49,52,57,61,64,69,73,76,76,
+       42,45,50,54,57,62,66,69,74,74, 44,48,51,54,56,60,63,66,68,68, 56,60,63,68,72,75,80,84, 61,49] },
+    { id: 'fantaisie', name: '즉흥 환상곡', by: '쇼팽 · 지옥', start: 5.2, max: 12.5, ramp: 0.035, notes:
+      [68,69,68,67,68,73,76,75, 73,75,73,72,73,76,80,81, 80,79,80,85,88,87,85,87, 85,84,85,81,78,76,75,73,
+       68,69,68,67,68,73,76,75, 73,75,73,72,73,76,80,81, 80,79,80,85,88,87,85,83, 81,80,78,76,75,73,72,73] },
+    { id: 'mountainking', name: '산왕의 궁전에서', by: '그리그 · 지옥', start: 4.5, max: 14, ramp: 0.05, notes:
+      [57, 59, 60, 62, 64, 60, 64, 63, 59, 63, 62, 58, 62, 57, 59, 60, 62, 64, 60, 64, 69, 67, 64, 60, 64, 67, 69, 71, 72, 74, 76, 72, 76, 75, 71, 75, 74, 70, 74, 69, 71, 72, 74, 76, 72, 76, 81, 79, 76, 72, 76, 79, 81, 83, 84, 86, 88, 84, 88, 87, 83, 87, 86, 82, 86, 81, 81, 69, 57] },
+    { id: 'campanella', name: '라 캄파넬라', by: '리스트 · 하데스', start: 6.0, max: 15, ramp: 0.045, notes:
+      [75, 87, 75, 87, 76, 87, 75, 87, 73, 87, 71, 87, 73, 87, 75, 87, 71, 87, 68, 87, 75, 87, 75, 87, 76, 87, 75, 87, 73, 87, 71, 87, 73, 87, 71, 87, 70, 87, 68, 87, 68, 80, 70, 82, 71, 83, 73, 85, 75, 87, 76, 88, 78, 90, 80, 92, 87, 75, 85, 73, 83, 71, 82, 70, 80, 68, 80, 87, 80, 87, 82, 87, 80, 87, 78, 87, 76, 87, 78, 87, 80, 87, 76, 87, 75, 87, 87, 99, 87, 99, 68, 56] },
+    { id: 'cancan', name: '천국과 지옥 (캉캉)', by: '오펜바흐 · 죽음', start: 7.0, max: 17, ramp: 0.05, notes:
+      [72, 74, 77, 76, 74, 79, 79, 79, 81, 76, 77, 74, 74, 74, 77, 76, 74, 72, 84, 83, 81, 79, 77, 76, 74, 72, 74, 77, 76, 74, 79, 79, 79, 81, 76, 77, 74, 74, 74, 77, 76, 74, 72, 79, 74, 76, 72, 84, 86, 89, 88, 86, 91, 91, 91, 93, 88, 89, 86, 86, 86, 86, 89, 88, 86, 84, 96, 95, 93, 91, 89, 88, 86, 84, 72, 60] },
+  ];
+
+  // Drum mode: lanes are kit pieces; a pattern string decides which lane each tile falls in.
+  const KIT = [
+    { name: '킥', sound: 'k', color: '#b8473c' },
+    { name: '스네어', sound: 's', color: '#d6b062' },
+    { name: '하이햇', sound: 'h', color: '#b9ad9c' },
+    { name: '크래시', sound: 'c', color: '#5f9a92' },
+  ];
+  const PAT = p => p.replace(/\s/g, '').split('').map(ch => 'KSHC'.indexOf(ch));
+  const DRUMS = [
+    { id: 'd-eight', name: '기본 8비트', by: '록 기본기 · 입문', start: 3.0,
+      pattern: PAT('CHSH KHSH KHSH KKSH  KHSH KHSH KHSH KKSS  CHSH KHSH KHSH KKSH  KHSH KHSH KHSS SSSS') },
+    { id: 'd-hiphop', name: '붐뱁 그루브', by: '힙합 비트 · 쉬움', start: 3.2,
+      pattern: PAT('KHSH KKSH KHSH HKSH  KHSH KKSH KHSK SKSS') },
+    { id: 'd-funk', name: '펑크 그루브', by: '고스트 노트 · 보통', start: 3.4,
+      pattern: PAT('KHSH HKSK HKSH KHSS  KHSH HKSK HKSH SSSC') },
+    { id: 'd-disco', name: '디스코 나이트', by: '포 온 더 플로어 · 보통', start: 3.6,
+      pattern: PAT('KHSH KHSH KHSH KHSH  KHSH KHSH KHSH SSSC') },
+    { id: 'd-house', name: '로봇 하우스', by: '프렌치 하우스 · 보통', start: 3.8,
+      pattern: PAT('CHSH KHSH KHSH KHKS  KHSH KHSH KHSH SSSS') },
+    { id: 'd-metal', name: '헤비 록', by: '더블 킥 · 도전', start: 4.0,
+      pattern: PAT('CKSK KKSK HKSK KKSS  CKSK KKSK HKSK SSSS  CKSK KKSK HKSK KKSS  SKSK SKSK SSSS SSSC') },
+    { id: 'd-shuffle', name: '셔플 솔로', by: '변칙 필인 · 도전', start: 4.2, max: 10.5, ramp: 0.025,
+      pattern: PAT('KHHS HHKH HSHH KHSC  SSKK HHSS KKHH CSKC  KHHS HKHS SHKH SKSC') },
+    { id: 'd-dnb', name: '드럼 앤 베이스', by: '브레이크비트 · 고수', start: 4.6, max: 11.5, ramp: 0.03,
+      pattern: PAT('KHSH HKSH HKHS KHSH  KHSH HKSH HKHS SSHC  KHSK HKSH SKHS KSHS  KHSH HKSH SSKK SSSC') },
+    { id: 'd-blast', name: '블래스트 비트', by: '익스트림 메탈 · 지옥', start: 5.5, max: 13.5, ramp: 0.04,
+      pattern: PAT('CKSK SKSK SKSK SKSC  KSKS HSHS KSKS SSSS  CKSH KSHK SHKS HKSC  KKSS KKSS HHCC SKSC  SSSS KKKK SSSS CKCK') },
+    { id: 'd-hades', name: '하데스', by: '저승 드럼 · 하데스', start: 6.0, max: 15, ramp: 0.045,
+      pattern: PAT('CKHS KCSH SKCH HSKC  KSHC CHSK SCKH HKCS  KKSS HHCC SSKK CCHH  KSKS HCHC SKSK CHCH') },
+    { id: 'd-bolero', name: '볼레로 폭주', by: '라벨 · 죽음', start: 7.0, max: 17, ramp: 0.05,
+      pattern: PAT('KSHS KSHS KC  KSHS KSHS SHSHSH  CSHS KSHS KC  KSHS KSHS SKSKSC') },
+  ];
+  DRUMS.forEach(d => d.drum = true);
+
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), cv = $('cv'), g = cv.getContext('2d');
+  const menu = $('menu'), over = $('over');
+  const css = getComputedStyle(document.documentElement);
+  const C = k => css.getPropertyValue(k).trim();
+  const COL = { ivory: C('--ivory'), ivory2: C('--ivory-2'), ebony: C('--ebony'), felt: C('--felt'), brass: C('--brass'), wood: C('--wood') };
+  const touchFirst = matchMedia('(pointer: coarse)').matches;
+
+  const store = {
+    get(k) { try { return +localStorage.getItem('keyshower:' + k) || 0; } catch { return 0; } },
+    set(k, v) { try { localStorage.setItem('keyshower:' + k, String(v)); } catch {} },
+  };
+
+  // ---------- audio: steel tongue drum ----------
+  // Struck steel tongue: soft mallet tick, a sine fundamental with a slowly
+  // beating twin, weak octave + inharmonic overtones, long ring into a hall.
+  let ac = null, bus = null, drums = null, noiseBuf = null;
+  function makeImpulse(sec, decay) {
+    const len = Math.floor(ac.sampleRate * sec), ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return ir;
+  }
+  function audio() {
+    if (!ac) {
+      try {
+        ac = new (window.AudioContext || window.webkitAudioContext)();
+        const master = ac.createGain(); master.gain.value = 0.8;
+        const comp = ac.createDynamicsCompressor();
+        comp.threshold.value = -14; comp.ratio.value = 3;
+        master.connect(comp); comp.connect(ac.destination);
+        bus = ac.createGain();
+        drums = ac.createGain(); drums.gain.value = 0.9; drums.connect(master);
+        const dry = ac.createGain(); dry.gain.value = 0.85;
+        const rev = ac.createConvolver(); rev.buffer = makeImpulse(3.2, 2.6);
+        const wet = ac.createGain(); wet.gain.value = 0.42;
+        const pre = ac.createDelay(); pre.delayTime.value = 0.025;
+        bus.connect(dry); dry.connect(master);
+        bus.connect(pre); pre.connect(rev); rev.connect(wet); wet.connect(master);
+        noiseBuf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.3), ac.sampleRate);
+        const nd = noiseBuf.getChannelData(0);
+        for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+      } catch { ac = null; }
+    }
+    if (ac && ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function partial(freq, amp, decay, t, glide) {
+    const o = ac.createOscillator(), gn = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * (glide ? 1.012 : 1), t);
+    if (glide) o.frequency.exponentialRampToValueAtTime(freq, t + 0.05);
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.linearRampToValueAtTime(amp, t + 0.005);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    o.connect(gn); gn.connect(bus);
+    o.start(t); o.stop(t + decay + 0.05);
+  }
+  function note(m, vel = 1) {
+    if (!audio()) return;
+    const t = ac.currentTime + 0.002, f = 440 * Math.pow(2, (m - 69) / 12);
+    const v = 0.32 * vel * (0.92 + Math.random() * 0.16);
+    const ring = 3.6 - Math.max(0, m - 60) * 0.06;     // higher tongues ring shorter
+    partial(f, v, ring, t, true);                       // fundamental
+    partial(f + 0.7, v * 0.45, ring * 0.9, t, true);   // slow beating shimmer
+    partial(f * 2.0, v * 0.16, ring * 0.35, t, false);  // octave
+    partial(f * 2.92, v * 0.07, 0.45, t, false);        // inharmonic metal
+    partial(f * 5.4, v * 0.035, 0.18, t, false);        // strike sparkle
+    // soft rubber-mallet tick
+    const n = ac.createBufferSource(); n.buffer = noiseBuf;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = Math.min(4000, f * 3); bp.Q.value = 1.4;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0.12 * vel, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    n.connect(bp); bp.connect(ng); ng.connect(bus); n.start(t);
+  }
+  function noise(t, dur, type, freq, amp) {
+    const n = ac.createBufferSource(); n.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+    const gn = ac.createGain();
+    gn.gain.setValueAtTime(amp, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(f); f.connect(gn); gn.connect(drums); n.start(t); n.stop(t + dur + 0.02);
+  }
+  function drum(kind) {
+    if (!audio()) return;
+    const t = ac.currentTime + 0.002;
+    if (kind.includes('k')) {
+      const o = ac.createOscillator(), gn = ac.createGain();
+      o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+      gn.gain.setValueAtTime(0.9, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+      o.connect(gn); gn.connect(drums); o.start(t); o.stop(t + 0.45);
+      noise(t, 0.012, 'lowpass', 3000, 0.25);
+    }
+    if (kind.includes('s')) {
+      const o = ac.createOscillator(), gn = ac.createGain(); o.type = 'triangle';
+      o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(160, t + 0.08);
+      gn.gain.setValueAtTime(0.35, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      o.connect(gn); gn.connect(drums); o.start(t); o.stop(t + 0.15);
+      noise(t, 0.2, 'highpass', 1400, 0.45);
+    }
+    if (kind.includes('h')) noise(t, 0.045, 'highpass', 7500, 0.18);
+    if (kind.includes('c')) {
+      noise(t, 1.4, 'highpass', 4500, 0.3);
+      noise(t, 0.6, 'bandpass', 9000, 0.2);
+      noise(t, 0.02, 'lowpass', 2500, 0.2);
+    }
+  }
+  function chord(ms, vel = 1) {
+    if (!audio()) return;
+    const t = ac.currentTime + 0.002;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 7;
+    lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(500, t + 0.22);
+    const gn = ac.createGain();
+    gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(0.22 * vel, t + 0.006);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    lp.connect(gn); gn.connect(bus);
+    ms.forEach(m => [-8, 8].forEach(cents => {
+      const o = ac.createOscillator(); o.type = 'sawtooth';
+      o.frequency.value = 440 * Math.pow(2, (m - 69) / 12); o.detune.value = cents;
+      const a = ac.createGain(); a.gain.value = 0.09;
+      o.connect(a); a.connect(lp); o.start(t); o.stop(t + 0.35);
+    }));
+  }
+  function bass(m, vel = 1) {
+    if (!audio()) return;
+    const t = ac.currentTime + 0.002, f = 440 * Math.pow(2, (m - 69) / 12);
+    const o = ac.createOscillator(), gn = ac.createGain();
+    o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
+    gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(0.55 * vel, t + 0.008);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(gn); gn.connect(drums); o.start(t); o.stop(t + 0.95);
+  }
+  function clang() { note(46, 0.9); note(47, 0.7); note(53, 0.5); }
+
+  // ---------- accompaniment ----------
+  // Every song gets a left-hand part, aligned 1:1 with its tiles, so a second
+  // player can play it (2인 모드) or it plays softly under the melody (1인 모드).
+  const PROF_MAJ = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+  const PROF_MIN = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+  function detectKey(ms) {
+    const h = new Array(12).fill(0);
+    ms.forEach(m => h[m % 12]++);
+    let best = { score: -1e9 };
+    for (let tonic = 0; tonic < 12; tonic++) {
+      [['maj', PROF_MAJ], ['min', PROF_MIN]].forEach(([q, prof]) => {
+        let sc = 0;
+        for (let i = 0; i < 12; i++) sc += h[(tonic + i) % 12] * prof[i];
+        if (sc > best.score) best = { score: sc, tonic, q };
+      });
+    }
+    return best;
+  }
+  function harmonize(ms) {
+    const key = detectKey(ms);
+    // diatonic triads as [root offset, quality]; first entry is the home chord
+    const chords = key.q === 'maj'
+      ? [[0, 'M'], [5, 'M'], [7, 'M'], [9, 'm'], [2, 'm']]
+      : [[0, 'm'], [5, 'm'], [7, 'M'], [8, 'M'], [3, 'M'], [10, 'M']];
+    const triad = ([r, q]) => { const root = (key.tonic + r) % 12; return [root, (root + (q === 'M' ? 4 : 3)) % 12, (root + 7) % 12]; };
+    const out = [];
+    let prev = 0;
+    for (let gi = 0; gi < ms.length; gi += 4) {
+      const grp = ms.slice(gi, gi + 4);
+      let bi = 0, bs = -1e9;
+      chords.forEach((ch, ci) => {
+        const tr = triad(ch);
+        let sc = 0;
+        grp.forEach((m, k) => { if (tr.includes(m % 12)) sc += k === 0 ? 1.5 : 1; });
+        if (ci === prev) sc += 0.3;
+        if (ci === 0) sc += 0.2;
+        if (sc > bs) { bs = sc; bi = ci; }
+      });
+      if (gi + 4 >= ms.length) bi = 0; // end on the home chord
+      prev = bi;
+      const [root, third, fifth] = triad(chords[bi]);
+      let r = 43 + ((root - 43 % 12 + 12) % 12);           // bass root in G2..F#3
+      const f5 = r + ((fifth - root + 12) % 12);
+      const t3 = r + 12 + ((third - root + 12) % 12);
+      const alberti = [r, f5, t3, f5];
+      grp.forEach((_, k) => out.push({ m: alberti[k] }));
+    }
+    return out;
+  }
+  const DRUM_BASS = [45,45,57,45, 48,48,60,48, 43,43,55,43, 40,40,52,47];
+  function buildAccomp(sg) {
+    if (sg.accomp) return sg.accomp;
+    if (sg.drum) sg.accomp = sg.pattern.map((_, i) => ({ bass: DRUM_BASS[i % DRUM_BASS.length] }));
+    else if (sg.steps) {
+      let lastB = 45;
+      sg.accomp = sg.steps.map(st => {
+        if (st.b) lastB = st.b;
+        return st.b || st.c ? { bass: st.b, c: st.c } : { m: lastB + 12 };
+      });
+    } else sg.accomp = harmonize(sg.notes);
+    return sg.accomp;
+  }
+  function playAccomp(a, vel) {
+    if (a.bass) bass(a.bass, vel);
+    if (a.c) chord(a.c, vel);
+    if (a.m) note(a.m, 0.75 * vel);
+  }
+  function playMelody(i, vel = 1) {
+    if (song.drum) drum(KIT[boardFor('melody').rows[i].lane].sound);
+    else if (song.steps) {
+      const st = song.steps[i % song.steps.length];
+      drum(st.d);
+      if (st.n) note(st.n, 0.8 * vel);
+    } else note(song.notes[i % song.notes.length], vel);
+  }
+
+  // ---------- state ----------
+  let W = 0, Hh = 0, H = 0, dpr = 1;
+  let song = null, s = 0, score = 0, bpmMax = 0;
+  let duo = false, boards = [];
+  let mode = 'menu'; // menu | ready | play | fail | over
+  let fail = null, rewind = null, started = false, overTimer = 0;
+
+  const topOf = i => Hh - (i + 2) * H + s * H;
+  const rps = () => Math.min(song.max || 9.5, song.start + (score / boards.length) * (song.ramp || 0.018));
+  const boardFor = role => boards.find(b => b.role === role) || boards[0];
+
+  // Left player (반주): A S D F / 1–4. Right player (멜로디): J K L ; / arrows. Solo keeps D F J K.
+  const SOLO_CODES = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3, Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3,
+    Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3, ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3 };
+  const SOLO_KEYS = { d: 0, f: 1, j: 2, k: 3, 'ㅇ': 0, 'ㄹ': 1, 'ㅓ': 2, 'ㅏ': 3 };
+  const LEFT_CODES = { KeyA: 0, KeyS: 1, KeyD: 2, KeyF: 3, Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 };
+  const LEFT_KEYS = { a: 0, s: 1, d: 2, f: 3, 'ㅁ': 0, 'ㄴ': 1, 'ㅇ': 2, 'ㄹ': 3 };
+  const RIGHT_CODES = { KeyJ: 0, KeyK: 1, KeyL: 2, Semicolon: 3, ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3,
+    Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3 };
+  const RIGHT_KEYS = { j: 0, k: 1, l: 2, ';': 3, 'ㅓ': 0, 'ㅏ': 1, 'ㅣ': 2 };
+
+  function layoutBoards() {
+    if (!duo) { if (boards[0]) { boards[0].x0 = 0; boards[0].w = W; } return; }
+    const gap = 10, bw = (W - gap) / 2;
+    boards.forEach((b, i) => { b.x0 = i * (bw + gap); b.w = bw; });
+  }
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 3);
+    W = stage.clientWidth; Hh = stage.clientHeight; H = Hh / 4;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    layoutBoards();
+  }
+
+  function addRow(b) {
+    if (song.drum && b.role !== 'accomp') { b.rows.push({ lane: song.pattern[b.rows.length % song.pattern.length], hitAt: 0 }); return; }
+    const prev = b.rows.length ? b.rows[b.rows.length - 1].lane : -1;
+    let lane = Math.floor(Math.random() * 4);
+    if (lane === prev && Math.random() < 0.8) lane = (lane + 1 + Math.floor(Math.random() * 3)) % 4;
+    b.rows.push({ lane, hitAt: 0 });
+  }
+  function ensureRows() {
+    boards.forEach(b => { while (!b.rows.length || topOf(b.rows.length - 1) > -H) addRow(b); });
+  }
+
+  function makeBoards() {
+    boards = duo
+      ? [{ role: 'accomp', name: '반주', keys: ['A','S','D','F'], codes: LEFT_CODES, jamo: LEFT_KEYS, rows: [], next: 0 },
+         { role: 'melody', name: '멜로디', keys: ['J','K','L',';'], codes: RIGHT_CODES, jamo: RIGHT_KEYS, rows: [], next: 0 }]
+      : [{ role: 'solo', name: '', keys: ['D','F','J','K'], codes: SOLO_CODES, jamo: SOLO_KEYS, rows: [], next: 0 }];
+    layoutBoards();
+  }
+
+  function recordId() { return song.id + (duo ? ':duo' : ''); }
+
+  function newGame(sg) {
+    song = sg || song;
+    buildAccomp(song);
+    clearTimeout(overTimer);
+    s = 0; score = 0; bpmMax = 0; fail = null; rewind = null; started = false;
+    makeBoards(); ensureRows();
+    mode = 'ready';
+    $('songLabel').textContent = `${song.name} · ${song.by}${duo ? ' · 2인' : ''}`;
+    document.querySelector('.app').classList.toggle('wide', duo);
+    menu.hidden = true; over.hidden = true;
+    requestAnimationFrame(resize);
+    try { cv.focus({ preventScroll: true }); } catch {}
+    if (song.drum !== (menuKind === 'drum')) setKind(song.drum ? 'drum' : 'piano');
+  }
+
+  function hit(b, i) {
+    b.rows[i].hitAt = performance.now();
+    score++; b.next = i + 1;
+    const acc = song.accomp[i % song.accomp.length];
+    if (b.role === 'accomp') playAccomp(acc, 1);
+    else if (b.role === 'melody') playMelody(i);
+    else {
+      playMelody(i);
+      if (!song.steps) playAccomp(acc, 0.45); // solo: accompaniment plays along softly
+    }
+    ensureRows();
+  }
+
+  function lose(b, lane, row, reason) {
+    mode = 'fail';
+    fail = { b, lane, row, at: performance.now() };
+    clang();
+    rewind = { from: s, to: Math.min(s, ((row + 2) * H - Hh + 1.6 * H) / H), at: performance.now() };
+    const id = recordId();
+    const best = Math.max(store.get(id), score);
+    store.set(id, best);
+    clearTimeout(overTimer);
+    overTimer = setTimeout(() => {
+      $('overReason').textContent = duo ? `${b.name} 쪽이 ${reason}` : reason;
+      $('overScore').textContent = score;
+      $('overBest').textContent = best;
+      $('overBpm').textContent = bpmMax;
+      mode = 'over'; over.hidden = false;
+      $('retryBtn').focus({ preventScroll: true });
+    }, 1100);
+  }
+
+  function tap(b, lane) {
+    if (!b || lane < 0 || lane > 3) return;
+    if (mode === 'ready' || (mode === 'play' && b.next === 0)) {
+      if (lane === b.rows[0].lane) { mode = 'play'; hit(b, 0); }
+      return;
+    }
+    if (mode !== 'play') return;
+    if (lane === b.rows[b.next].lane) hit(b, b.next);
+    else lose(b, lane, b.next, '흰 칸을 눌렀어요');
+  }
+
+  // ---------- loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (mode === 'play') {
+      const v = rps();
+      bpmMax = Math.max(bpmMax, Math.round(v * 60));
+      s += v * dt;
+      ensureRows();
+      for (const b of boards) {
+        if (topOf(b.next) > Hh - H * 0.2) { lose(b, b.rows[b.next].lane, b.next, '건반을 놓쳤어요'); break; }
+      }
+    }
+    if (rewind) {
+      const k = Math.min(1, (now - rewind.at) / 350);
+      s = rewind.from + (rewind.to - rewind.from) * (1 - Math.pow(1 - k, 3));
+      if (k >= 1) rewind = null;
+    }
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+
+  function rr(x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+
+  function drawBoard(b, now) {
+    const x0 = b.x0, bw = b.w, lw = bw / 4;
+    g.save();
+    g.beginPath(); g.rect(x0, 0, bw, Hh); g.clip();
+    const bg = g.createLinearGradient(0, 0, 0, Hh);
+    bg.addColorStop(0, COL.ivory2); bg.addColorStop(0.25, COL.ivory); bg.addColorStop(1, COL.ivory);
+    g.fillStyle = bg; g.fillRect(x0, 0, bw, Hh);
+    g.fillStyle = 'rgba(60,40,30,.16)';
+    for (let i = 1; i < 4; i++) g.fillRect(Math.round(x0 + i * lw) - 0.5, 0, 1, Hh);
+
+    const drumLanes = song.drum && b.role !== 'accomp';
+    const first = Math.max(0, Math.floor(s - 2));
+    for (let i = first; i < b.rows.length; i++) {
+      const y = topOf(i);
+      if (y > Hh) continue;
+      if (y + H < 0) break;
+      const r = b.rows[i], x = x0 + r.lane * lw, pad = 1.5;
+      if (!r.hitAt) {
+        const tg = g.createLinearGradient(0, y, 0, y + H);
+        tg.addColorStop(0, '#2c272c'); tg.addColorStop(0.85, COL.ebony); tg.addColorStop(1, '#0d0b0e');
+        g.fillStyle = tg; rr(x + pad, y + pad, lw - pad * 2, H - pad * 2, 4); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(x + pad + 4, y + pad + 3, lw - pad * 2 - 8, 2);
+        if (b.role === 'accomp') {
+          g.fillStyle = 'rgba(95,154,146,.9)'; g.fillRect(x + pad + 4, y + H - pad - 7, lw - pad * 2 - 8, 3);
+        }
+        if (drumLanes) {
+          const kc = KIT[r.lane].color;
+          g.fillStyle = kc; g.fillRect(x + pad + 4, y + H - pad - 7, lw - pad * 2 - 8, 3);
+          if (!(i === 0 && b.next === 0)) {
+            g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.font = `600 ${Math.round(Math.min(lw * 0.16, 15))}px "IBM Plex Sans KR", sans-serif`;
+            g.fillText(KIT[r.lane].name, x + lw / 2, y + H / 2);
+          }
+        }
+        if (i === 0 && b.next === 0) {
+          g.fillStyle = COL.brass; g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.font = `700 ${Math.round(Math.min(lw * 0.26, 26))}px "Gowun Batang", serif`;
+          g.fillText('시작', x + lw / 2, y + H / 2);
+          if (!touchFirst) {
+            g.font = `600 12px "IBM Plex Sans KR", sans-serif`; g.fillStyle = 'rgba(246,241,229,.6)';
+            g.fillText(`${b.keys[r.lane]} 키`, x + lw / 2, y + H / 2 + 24);
+          }
+        }
+      } else {
+        const k = Math.min(1, (now - r.hitAt) / 260);
+        g.fillStyle = `rgba(25,22,26,${0.22 * (1 - k) + 0.07})`;
+        rr(x + pad, y + pad, lw - pad * 2, H - pad * 2, 4); g.fill();
+        if (k < 1) {
+          g.strokeStyle = b.role === 'accomp' ? `rgba(95,154,146,${1 - k})` : `rgba(214,176,98,${1 - k})`; g.lineWidth = 3;
+          g.beginPath(); g.arc(x + lw / 2, y + H / 2, 8 + k * lw * 0.55, 0, Math.PI * 2); g.stroke();
+        }
+      }
+    }
+
+    if (fail && fail.b === b && Math.floor((now - fail.at) / 140) % 2 === 0) {
+      g.fillStyle = 'rgba(214,69,61,.85)';
+      g.fillRect(x0 + fail.lane * lw, topOf(fail.row), lw, H);
+    }
+
+    g.fillStyle = COL.felt; g.fillRect(x0, 0, bw, 4);
+
+    if (duo && mode !== 'menu') {
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      g.font = `700 13px "IBM Plex Sans KR", sans-serif`;
+      g.fillStyle = b.role === 'accomp' ? 'rgba(60,110,104,.9)' : 'rgba(150,110,40,.95)';
+      g.fillText(b.role === 'accomp' ? '반주 · 왼손' : '멜로디 · 오른손', x0 + bw / 2, 92);
+    }
+    if (drumLanes && mode !== 'menu') {
+      g.textAlign = 'center'; g.textBaseline = 'bottom';
+      g.font = `700 ${Math.round(Math.min(lw * 0.15, 14))}px "IBM Plex Sans KR", sans-serif`;
+      KIT.forEach((kp, i) => { g.fillStyle = kp.color; g.fillText(kp.name, x0 + i * lw + lw / 2, Hh - (touchFirst ? 8 : 24)); });
+    }
+    if (!touchFirst && (mode === 'ready' || mode === 'play')) {
+      g.font = `600 12px "IBM Plex Sans KR", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'bottom';
+      g.fillStyle = 'rgba(60,40,30,.35)';
+      b.keys.forEach((k, i) => g.fillText(k, x0 + i * lw + lw / 2, Hh - 8));
+    }
+    g.restore();
+  }
+
+  function draw(now) {
+    g.fillStyle = COL.wood; g.fillRect(0, 0, W, Hh);
+    if (!song) return;
+    boards.forEach(b => drawBoard(b, now));
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    g.font = `700 ${Math.round(Math.min(W * 0.16, 64))}px "Gowun Batang", serif`;
+    g.fillStyle = 'rgba(156,47,39,.92)';
+    if (mode !== 'menu') {
+      if (duo) {
+        const fs = Math.round(Math.min(W * 0.1, 48));
+        g.font = `700 ${fs}px "Gowun Batang", serif`;
+        const tw = Math.max(fs * 1.4, g.measureText(String(score)).width + 24);
+        g.fillStyle = COL.wood; rr(W / 2 - tw / 2, 12, tw, fs + 16, (fs + 16) / 2); g.fill();
+        g.fillStyle = COL.brass; g.fillText(String(score), W / 2, 20);
+      } else g.fillText(String(score), W / 2, 18);
+    }
+    if (mode === 'play' || mode === 'fail') {
+      g.font = `600 13px "IBM Plex Sans KR", sans-serif`;
+      g.textAlign = 'left'; g.fillStyle = 'rgba(60,40,30,.6)';
+      g.fillText(`♩ = ${Math.round(rps() * 60)}`, 10, 12);
+    }
+  }
+
+  // ---------- input ----------
+  cv.addEventListener('pointerdown', e => {
+    e.preventDefault(); audio();
+    const rect = cv.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const b = boards.find(bd => x >= bd.x0 && x < bd.x0 + bd.w);
+    if (b) tap(b, Math.floor(((x - b.x0) / b.w) * 4));
+  });
+  window.addEventListener('keydown', e => {
+    if (e.repeat) return;
+    if (e.key === 'Escape' && mode !== 'menu') { e.preventDefault(); showMenu(); return; }
+    if (mode === 'ready' || mode === 'play') {
+      const k = (e.key || '').toLowerCase();
+      for (const b of boards) {
+        let lane = b.codes[e.code];
+        if (lane === undefined) lane = b.jamo[k];
+        if (lane !== undefined) { e.preventDefault(); audio(); tap(b, lane); return; }
+      }
+    }
+    if (mode === 'over' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); audio(); newGame(); }
+  });
+
+  let menuKind = 'piano';
+  const LEDE = {
+    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 반주는 자동으로 따라와요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
+    drum: '네 줄이 각각 드럼 하나예요. 떨어지는 패드를 순서대로 치면 비트가 완성되고 베이스가 따라옵니다. 놓치거나 빈 칸을 치면 끝나요.',
+    duo: '왼쪽 사람은 반주(왼손), 오른쪽 사람은 멜로디(오른손)를 맡아요. 둘이 박자를 맞춰야 곡이 완성되고, 한 명이라도 놓치면 끝나요.',
+  };
+  function setKind(kind) {
+    menuKind = kind;
+    $('tabPiano').setAttribute('aria-pressed', String(kind === 'piano'));
+    $('tabDrum').setAttribute('aria-pressed', String(kind === 'drum'));
+    updateMenuText();
+  }
+  function setDuo(v) {
+    duo = v;
+    $('tabSolo').setAttribute('aria-pressed', String(!v));
+    $('tabDuo').setAttribute('aria-pressed', String(v));
+    updateMenuText();
+  }
+  function updateMenuText() {
+    $('menuEyebrow').textContent = duo ? '2인 협동 · 왼손 반주 + 오른손 멜로디'
+      : menuKind === 'drum' ? '킥 · 스네어 · 하이햇 · 크래시' : '4 LANES · BLACK KEYS ONLY';
+    $('menuLede').textContent = duo ? LEDE.duo : LEDE[menuKind];
+    $('hintKeys').hidden = duo; $('hintDuo').hidden = !duo;
+    renderSongs();
+  }
+  function showMenu() {
+    clearTimeout(overTimer);
+    mode = 'menu'; over.hidden = true; menu.hidden = false;
+    renderSongs();
+  }
+  function renderSongs() {
+    const box = $('songs'); box.textContent = '';
+    (menuKind === 'drum' ? DRUMS : SONGS).forEach(sg => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'song-btn';
+      const best = store.get(sg.id + (duo ? ':duo' : ''));
+      b.innerHTML = `<span class="t"></span><span class="b"></span><span class="best"></span>`;
+      b.querySelector('.t').textContent = sg.name;
+      b.querySelector('.b').textContent = sg.by;
+      b.querySelector('.best').textContent = best ? `최고 ${best}` : '새 곡';
+      b.addEventListener('click', () => { audio(); newGame(sg); });
+      box.appendChild(b);
+    });
+  }
+  $('menuBtn').addEventListener('click', showMenu);
+  const fsBtn = $('fsBtn'), app = document.querySelector('.app');
+  if (document.fullscreenEnabled && !touchFirst) {
+    fsBtn.hidden = false;
+    fsBtn.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await app.requestFullscreen();
+      } catch { fsBtn.hidden = true; }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      fsBtn.textContent = document.fullscreenElement ? '창 모드' : '전체 화면';
+    });
+  }
+  $('tabPiano').addEventListener('click', () => setKind('piano'));
+  $('tabDrum').addEventListener('click', () => setKind('drum'));
+  $('tabSolo').addEventListener('click', () => setDuo(false));
+  $('tabDuo').addEventListener('click', () => setDuo(true));
+  $('changeBtn').addEventListener('click', showMenu);
+  $('retryBtn').addEventListener('click', () => { audio(); newGame(); });
+
+  new ResizeObserver(resize).observe(stage);
+  // Draw a sample board behind the menu so the first frame shows the game.
+  song = SONGS[0]; buildAccomp(song); makeBoards();
+  resize(); ensureRows(); showMenu(); updateMenuText();
+  requestAnimationFrame(frame);
+})();
+</script>

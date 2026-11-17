@@ -1,0 +1,15 @@
+# 건반 소나기
+
+떨어지는 검은 건반을 순서대로 눌러 곡을 연주하는 피아노 타일 게임입니다.
+
+- 피아노 / 드럼 모드, 1인 / 2인 협동(왼손 반주 + 오른손 멜로디)
+- 텅드럼 음색, 모든 곡에 자동 반주
+- 탭, 클릭, 키보드(D F J K · 1–4 · 방향키) 지원
+
+## 플레이
+
+GitHub Pages: https://leewonyoungethan.github.io/piano-tiles/
+
+## 수정하기
+
+`piano-tiles.html`을 고친 뒤 `./build-pages.sh`를 실행하면 `index.html`이 다시 만들어집니다.
