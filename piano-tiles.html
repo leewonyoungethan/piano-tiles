@@ -50,6 +50,10 @@ button {
   background: transparent; border: 1px solid color-mix(in srgb, var(--brass) 55%, transparent);
   border-radius: 999px; padding: 6px 14px; font-size: .85rem;
 }
+.bar button { white-space: nowrap; flex-shrink: 0; }
+.brand { white-space: nowrap; }
+@media (max-width: 460px) { .song { display: none; } .bar { justify-content: flex-end; } .brand { margin-right: auto; } .bar button { padding: 6px 10px; } }
+#accBtn[aria-pressed="true"] { background: color-mix(in srgb, var(--brass) 22%, transparent); }
 button:hover { background: color-mix(in srgb, var(--brass) 14%, transparent); }
 button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .stage {
@@ -100,6 +104,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   <header class="bar">
     <div class="brand">건반 소나기</div>
     <div class="song" id="songLabel">곡을 골라 주세요</div>
+    <button id="accBtn" type="button" aria-pressed="false">반주 끔</button>
     <button id="fsBtn" type="button" hidden>전체 화면</button>
     <button id="menuBtn" type="button">곡 선택</button>
   </header>
@@ -547,7 +552,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     else if (b.role === 'melody') playMelody(i);
     else {
       playMelody(i);
-      if (!song.steps) playAccomp(acc, 0.45); // solo: accompaniment plays along softly
+      if (soloAccomp && !song.steps) playAccomp(acc, 0.45); // solo: optional soft accompaniment
     }
     ensureRows();
   }
@@ -737,8 +742,8 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
 
   let menuKind = 'piano';
   const LEDE = {
-    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 반주는 자동으로 따라와요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
-    drum: '네 줄이 각각 드럼 하나예요. 떨어지는 패드를 순서대로 치면 비트가 완성되고 베이스가 따라옵니다. 놓치거나 빈 칸을 치면 끝나요.',
+    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 반주는 위의 ‘반주’ 버튼으로 켤 수 있어요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
+    drum: '네 줄이 각각 드럼 하나예요. 떨어지는 패드를 순서대로 치면 비트가 완성됩니다. 놓치거나 빈 칸을 치면 끝나요.',
     duo: '왼쪽 사람은 반주(왼손), 오른쪽 사람은 멜로디(오른손)를 맡아요. 둘이 박자를 맞춰야 곡이 완성되고, 한 명이라도 놓치면 끝나요.',
   };
   function setKind(kind) {
@@ -780,6 +785,17 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     });
   }
   $('menuBtn').addEventListener('click', showMenu);
+  // Solo accompaniment is off unless the player turns it on (remembered per browser).
+  let soloAccomp = false;
+  try { soloAccomp = localStorage.getItem('keyshower:accomp') === '1'; } catch {}
+  const accBtn = $('accBtn');
+  const showAcc = () => { accBtn.textContent = soloAccomp ? '반주 켬' : '반주 끔'; accBtn.setAttribute('aria-pressed', String(soloAccomp)); };
+  showAcc();
+  accBtn.addEventListener('click', () => {
+    soloAccomp = !soloAccomp; showAcc();
+    try { localStorage.setItem('keyshower:accomp', soloAccomp ? '1' : '0'); } catch {}
+    try { cv.focus({ preventScroll: true }); } catch {}
+  });
   const fsBtn = $('fsBtn'), app = document.querySelector('.app');
   if (document.fullscreenEnabled && !touchFirst) {
     fsBtn.hidden = false;
