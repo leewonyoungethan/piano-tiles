@@ -180,6 +180,10 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     return bars.flatMap(bar => bar.d.map((d, i) => ({ d, b: bar.b[i], c: stab[i] ? bar.c : null, n: bar.n ? bar.n[i] : null })));
   }
 
+  // Note lengths in eighth notes (1 = ♪, 2 = ♩, 3 = ♩., 4 = 𝅗𝅥, 6 = 𝅗𝅥., 8 = 𝅝), one per melody note.
+  // Each tile row is one eighth note, so tiles fall in the song's real rhythm.
+  const DUR = {"twinkle":[2,2,2,2,2,2,4,2,2,2,2,2,2,4,2,2,2,2,2,2,4,2,2,2,2,2,2,4,2,2,2,2,2,2,4,2,2,2,2,2,2,4],"birthday":[1,1,2,2,2,4,1,1,2,2,2,4,1,1,2,2,2,2,4,1,1,2,2,2,6],"airplane":[2,2,2,2,2,2,4,2,2,4,2,2,4,2,2,2,2,2,2,2,2,2,2,2,2,8],"butterfly":[2,2,4,2,2,4,2,2,2,2,2,2,4,2,2,2,2,2,2,2,2,2,2,2,2,2,2,4],"arirang":[3,1,2,2,2,2,2,2,2,2,2,2,2,6,3,1,2,2,2,2,2,2,2,2,2,6,3,1,2,2,2,2,2,2,2,2,2,6,3,1,2,2,2,2,2,2,2,2,2,6],"jingle":[2,2,4,2,2,4,2,2,3,1,8,2,2,3,1,2,2,2,1,1,2,2,2,4,4,2,2,4,2,2,4,2,2,3,1,8,2,2,3,1,2,2,2,2,2,2,2,2,8],"susanna":[1,1,2,2,3,1,2,2,3,1,2,2,2,2,6,1,1,2,2,3,1,2,2,3,1,2,2,2,2,6,2,4,2,3,1,2,2,2,2,6,1,1,2,2,3,1,2,2,3,1,2,2,2,2,6],"ode":[2,2,2,2,2,2,2,2,2,2,2,2,3,1,4,2,2,2,2,2,2,2,2,2,2,2,2,3,1,4,2,2,2,2,2,1,1,2,2,2,1,1,2,2,2,2,4,2,2,2,2,2,2,2,2,2,2,2,2,3,1,4],"minuet":[2,1,1,1,1,2,2,2,2,1,1,1,1,2,2,2,2,1,1,1,1,2,1,1,1,1,2,1,1,1,1,2,6,2,1,1,1,1,2,2,2,2,1,1,1,1,2,2,2,2,1,1,1,1,2,1,1,1,1,2,1,1,1,1,6],"canon":[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"spring":[2,2,2,2,1,1,6,1,1,2,2,2,1,1,6,1,1,2,1,1,2,2,4,2,2,2,2,1,1,6,1,1,2,2,2,1,1,6,1,1,2,2,6],"fate":[1,1,1,6,1,1,1,6,1,1,1,6,1,1,1,6,1,1,1,6,1,1,1,6,1,1,1,6,1,1,1,6],"elise":[1,1,1,1,1,1,1,1,3,1,1,1,3,1,1,1,3,1,1,1,1,1,1,1,1,1,3,1,1,1,3,1,1,1,4],"turkish":[1,1,1,1,4,1,1,1,1,4,1,1,1,1,1,1,1,1,1,1,1,1,4,2,2,1,1,1,1,1,1,1,1,1,1,1,1,4],"tell":[1,1,2,1,1,2,1,1,1,2,1,1,2,1,1,2,1,1,1,1,1,2,1,1,2,1,1,2,1,1,1,2,1,1,2,2,1,1,1,1,1,2,1,1,2,1,1,2,1,1,1,2,1,1,2,1,1,2,1,1,1,1,1,2,2,2,6],"frenzy":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6],"bumblebee":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6],"moonlight3":[1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,4,8],"fantaisie":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6],"mountainking":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6],"campanella":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6],"cancan":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6]};
+
   const SONGS = [
     { id: 'twinkle', name: '작은 별', by: '프랑스 민요 · 입문', start: 3.0, notes:
       [60,60,67,67,69,69,67, 65,65,64,64,62,62,60, 67,67,65,65,64,64,62, 67,67,65,65,64,64,62, 60,60,67,67,69,69,67, 65,65,64,64,62,62,60] },
@@ -290,6 +294,24 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       pattern: PAT('KSHS KSHS KC  KSHS KSHS SHSHSH  CSHS KSHS KC  KSHS KSHS SKSKSC') },
   ];
   DRUMS.forEach(d => d.drum = true);
+  SONGS.forEach(sg => { if (sg.notes && DUR[sg.id]) sg.dur = DUR[sg.id]; });
+
+  // Timeline of eighth-note rows: a tap row per note, then rest rows for the
+  // rest of its length. Notes of a dotted quarter or longer become hold tiles.
+  function buildTimeline(sg) {
+    if (sg.timeline !== undefined) return sg.timeline;
+    if (!sg.dur) return (sg.timeline = null);
+    const tl = [];
+    sg.dur.forEach((d, k) => {
+      const len = d >= 3 ? Math.min(d, 4) : 1;
+      tl.push({ note: k, len });
+      for (let c = 1; c < len; c++) tl.push({ cont: true });
+      for (let r = len; r < d; r++) tl.push({ rest: true });
+    });
+    sg.timeline = tl;
+    sg.tempoK = Math.min(1.4, Math.max(1, tl.length / sg.notes.length));
+    return tl;
+  }
 
   const $ = id => document.getElementById(id);
   const stage = $('stage'), cv = $('cv'), g = cv.getContext('2d');
@@ -493,13 +515,13 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (a.c) chord(a.c, vel);
     if (a.m) note(a.m, 0.75 * vel);
   }
-  function playMelody(i, vel = 1) {
+  function playMelody(i, n, vel = 1) {
     if (song.drum) drum(KIT[boardFor('melody').rows[i].lane].sound);
     else if (song.steps) {
-      const st = song.steps[i % song.steps.length];
+      const st = song.steps[n % song.steps.length];
       drum(st.d);
       if (st.n) note(st.n, 0.8 * vel);
-    } else note(song.notes[i % song.notes.length], vel);
+    } else note(song.notes[n % song.notes.length], vel);
   }
 
   // ---------- state ----------
@@ -510,7 +532,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   let fail = null, rewind = null, started = false, overTimer = 0;
 
   const topOf = i => Hh - (i + 2) * H + s * H;
-  const rps = () => Math.min(song.max || 9.5, song.start + (score / boards.length) * (song.ramp || 0.018));
+  const rps = () => (song.tempoK || 1) * Math.min(song.max || 9.5, song.start + (score / boards.length) * (song.ramp || 0.018));
   const boardFor = role => boards.find(b => b.role === role) || boards[0];
 
   // Left player (반주): A S D F / 1–4. Right player (멜로디): J K L ; / arrows. Solo keeps D F J K.
@@ -530,7 +552,8 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   }
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 3);
-    W = stage.clientWidth; Hh = stage.clientHeight; H = Hh / 4;
+    // rhythm songs show more eighth-note rows so a few notes are always visible
+    W = stage.clientWidth; Hh = stage.clientHeight; H = Hh / (song && song.timeline ? 6 : 4);
     cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     layoutBoards();
@@ -540,13 +563,24 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   // in the same lane. Holding the head plays the continuation notes in time.
   function addRow(b) {
     if (song.drum && b.role !== 'accomp') { b.rows.push({ lane: song.pattern[b.rows.length % song.pattern.length], hitAt: 0 }); return; }
+    const tl = song.timeline, k = b.rows.length;
+    if (tl) {
+      const spec = tl[k % tl.length], loop = Math.floor(k / tl.length);
+      if (spec.rest) { b.rows.push({ rest: true, lane: -1, hitAt: 0 }); return; }
+      if (spec.cont) { b.rows.push({ cont: true, lane: b.contLane, hitAt: 0 }); return; }
+      let lane = Math.floor(Math.random() * 4);
+      if (lane === b.lastLane && Math.random() < 0.8) lane = (lane + 1 + Math.floor(Math.random() * 3)) % 4;
+      b.lastLane = lane; b.contLane = lane;
+      b.rows.push({ lane, len: spec.len, note: spec.note + loop * song.notes.length, hitAt: 0 });
+      return;
+    }
     if (b.pendingCont > 0) { b.rows.push({ lane: b.contLane, cont: true, hitAt: 0 }); b.pendingCont--; return; }
     const prev = b.rows.length ? b.rows[b.rows.length - 1].lane : -1;
     let lane = Math.floor(Math.random() * 4);
     if (lane === prev && Math.random() < 0.8) lane = (lane + 1 + Math.floor(Math.random() * 3)) % 4;
     let len = 1;
-    if (b.rows.length > 3 && (b.sinceLong || 0) > 4 && Math.random() < 0.16) len = Math.random() < 0.6 ? 2 : 3;
-    b.rows.push({ lane, len, hitAt: 0 });
+    if (!song.steps && b.rows.length > 3 && (b.sinceLong || 0) > 4 && Math.random() < 0.16) len = Math.random() < 0.6 ? 2 : 3;
+    b.rows.push({ lane, len, note: k, hitAt: 0 });
     if (len > 1) { b.pendingCont = len - 1; b.contLane = lane; b.sinceLong = 0; }
     else b.sinceLong = (b.sinceLong || 0) + 1;
   }
@@ -566,7 +600,8 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
 
   function newGame(sg) {
     song = sg || song;
-    buildAccomp(song);
+    buildAccomp(song); buildTimeline(song);
+    resize();
     clearTimeout(overTimer);
     fx.length = 0; shownScore = 0; lastTier = 0;
     s = 0; score = 0; bpmMax = 0; fail = null; rewind = null; started = false;
@@ -663,17 +698,26 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     r.hitAt = performance.now();
     if (!(r.len > 1)) evaporateRow(b, i);
     b.next = i + (r.len || 1);
+    skipRests(b);
     if (r.len > 1) { r.state = 'holding'; r.sAt = s; r.fill = 1; b.hold = { i, len: r.len, done: 1, src }; }
     playRow(b, i);
     ensureRows();
   }
+  function skipRests(b) {
+    for (;;) {
+      while (b.rows.length <= b.next) addRow(b);
+      if (!b.rows[b.next].rest) return;
+      b.next++;
+    }
+  }
   function playRow(b, i, counts = true) {
     if (counts) score++;
-    const acc = song.accomp[i % song.accomp.length];
+    const n = b.rows[i].note ?? i;
+    const acc = song.accomp[n % song.accomp.length];
     if (b.role === 'accomp') playAccomp(acc, 1);
-    else if (b.role === 'melody') playMelody(i);
+    else if (b.role === 'melody') playMelody(i, n);
     else {
-      playMelody(i);
+      playMelody(i, n);
       if (soloAccomp && !song.steps) playAccomp(acc, 0.45); // solo: optional soft accompaniment
     }
   }
@@ -692,7 +736,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       if (!h) return;
       const r = b.rows[h.i];
       r.fill = Math.min(h.len, 1 + (s - r.sAt));
-      while (h.done < h.len && s >= r.sAt + h.done) { playRow(b, h.i + h.done, false); h.done++; }
+      while (h.done < h.len && s >= r.sAt + h.done) { if (!song.timeline) playRow(b, h.i + h.done, false); h.done++; }
       if (h.done >= h.len && r.fill >= h.len) {
         // held to the end: the press already scored 1, the hold adds 4 → 5 in total
         score += HOLD_BONUS - 1;
@@ -740,7 +784,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (mode === 'play') {
       const v = rps();
-      bpmMax = Math.max(bpmMax, Math.round(v * 60));
+      bpmMax = Math.max(bpmMax, Math.round(v * 30));
       s += v * dt;
       updateHolds();
       ensureRows();
@@ -778,7 +822,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     const first = Math.max(0, Math.floor(s - 5));
     for (let i = first; i < b.rows.length; i++) {
       const r = b.rows[i];
-      if (r.cont) continue;
+      if (r.cont || r.rest) continue;
       const y = topOf(i);
       if (y + H < 0) break;
       if (r.len > 1) { drawLong(b, r, i, x0, lw); continue; }
@@ -992,7 +1036,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (mode === 'play' || mode === 'fail') {
       g.font = `600 13px "IBM Plex Sans KR", sans-serif`;
       g.textAlign = 'left'; g.fillStyle = 'rgba(60,40,30,.6)';
-      g.fillText(`♩ = ${Math.round(rps() * 60)}`, 10, 12);
+      g.fillText(`♩ = ${Math.round(rps() * 30)}`, 10, 12);
     }
   }
 
@@ -1099,7 +1143,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
 
   new ResizeObserver(resize).observe(stage);
   // Draw a sample board behind the menu so the first frame shows the game.
-  song = SONGS[0]; buildAccomp(song); makeBoards();
+  song = SONGS[0]; buildAccomp(song); buildTimeline(song); makeBoards();
   resize(); ensureRows(); showMenu(); updateMenuText();
   requestAnimationFrame(frame);
 })();
