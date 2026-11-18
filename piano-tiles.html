@@ -568,7 +568,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     song = sg || song;
     buildAccomp(song);
     clearTimeout(overTimer);
-    fx.length = 0;
+    fx.length = 0; shownScore = 0; lastTier = 0;
     s = 0; score = 0; bpmMax = 0; fail = null; rewind = null; started = false;
     makeBoards(); ensureRows();
     mode = 'ready';
@@ -896,23 +896,92 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     }
   }
 
+  // ---------- score board ----------
+  // The higher the score, the flashier the number: red → gold → shimmering
+  // gold → rainbow → glowing rainbow with sparkles → full rainbow pulse.
+  const TIERS = [
+    { at: 0,   label: '' },
+    { at: 25,  label: '좋아요' },
+    { at: 50,  label: '멋져요' },
+    { at: 100, label: '대단해요' },
+    { at: 200, label: '전설' },
+    { at: 400, label: '신' },
+  ];
+  let shownScore = -1, bumpAt = 0, tierAt = 0, lastTier = 0;
+  function drawScore(now) {
+    let tier = 0;
+    TIERS.forEach((tr, i) => { if (score >= tr.at) tier = i; });
+    if (score !== shownScore) { if (score > shownScore) bumpAt = now; shownScore = score; }
+    if (tier !== lastTier) { if (tier > lastTier) tierAt = now; lastTier = tier; }
+    const time = now / 1000, text = String(score);
+    const fs = Math.round(duo ? Math.min(W * 0.1, 48) : Math.min(W * 0.16, 64));
+    const cy = duo ? 20 + fs / 2 : 18 + fs / 2;
+    g.save();
+    g.font = `700 ${fs}px "Gowun Batang", serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const tw = g.measureText(text).width;
+    if (duo) {
+      const pw = Math.max(fs * 1.4, tw + 24);
+      g.fillStyle = COL.wood; rr(W / 2 - pw / 2, 12, pw, fs + 16, (fs + 16) / 2); g.fill();
+    }
+    // bump on every point, bigger at higher tiers, and a big pop on reaching a new tier
+    const kick = Math.max(0, 1 - (now - bumpAt) / 160) * (0.08 + tier * 0.035);
+    const pop = Math.max(0, 1 - (now - tierAt) / 600) * 0.5;
+    const pulse = tier >= 5 ? 0.05 * Math.sin(time * 9) : 0;
+    const sc = reduceMotion ? 1 : 1 + kick + pop * Math.sin(Math.min(1, (now - tierAt) / 600) * Math.PI) + pulse;
+    g.translate(W / 2, cy); g.scale(sc, sc);
+    const x0 = -tw / 2, x1 = tw / 2;
+    let fill;
+    if (tier === 0) fill = duo ? COL.brass : 'rgba(156,47,39,.92)';
+    else if (tier === 1) {
+      fill = g.createLinearGradient(0, -fs / 2, 0, fs / 2);
+      fill.addColorStop(0, '#f4d688'); fill.addColorStop(0.55, '#d19a2e'); fill.addColorStop(1, '#9a6a14');
+    } else if (tier === 2) {
+      const off = (time * 0.6) % 1;
+      fill = g.createLinearGradient(x0 - tw, 0, x1 + tw, 0);
+      for (let k = 0; k <= 6; k++) {
+        const pos = (k / 6 + off) % 1;
+        fill.addColorStop(pos, ['#c8871d', '#f6dc8e', '#e0607a', '#f6dc8e', '#c8871d', '#ffe9a8', '#c8871d'][k]);
+      }
+    } else {
+      const speed = tier === 3 ? 90 : tier === 4 ? 180 : 320;
+      const base = (time * speed) % 360;
+      fill = g.createLinearGradient(x0, 0, x1, 0);
+      for (let k = 0; k <= 6; k++) fill.addColorStop(k / 6, `hsl(${(base + k * 50) % 360},90%,${tier >= 4 ? 58 : 52}%)`);
+    }
+    if (tier >= 3) {
+      g.shadowColor = `hsla(${(time * 200) % 360},100%,60%,.85)`;
+      g.shadowBlur = tier === 3 ? 10 : tier === 4 ? 18 : 26;
+    } else if (tier >= 1) { g.shadowColor = 'rgba(214,160,60,.6)'; g.shadowBlur = 6 + tier * 3; }
+    if (tier >= 2) { g.lineWidth = tier >= 4 ? 5 : 3; g.strokeStyle = 'rgba(255,250,235,.95)'; g.strokeText(text, 0, 0); }
+    g.fillStyle = fill; g.fillText(text, 0, 0);
+    g.shadowBlur = 0;
+    // orbiting sparkles from the 전설 tier up
+    if (tier >= 4 && !reduceMotion) {
+      const n = tier === 4 ? 6 : 10, rx = tw / 2 + 16, ry = fs * 0.55;
+      for (let k = 0; k < n; k++) {
+        const a = time * (tier === 4 ? 2.2 : 3.4) + (k / n) * Math.PI * 2;
+        const sz = 10 + 6 * Math.sin(time * 7 + k);
+        g.globalAlpha = 0.9;
+        g.drawImage(SPRITE.gold, Math.cos(a) * rx - sz / 2, Math.sin(a) * ry - sz / 2, sz, sz);
+      }
+      g.globalAlpha = 1;
+    }
+    // tier caption under the number
+    if (tier >= 1) {
+      g.font = `700 ${Math.round(fs * 0.24)}px "IBM Plex Sans KR", sans-serif`;
+      g.fillStyle = tier >= 3 ? `hsl(${(time * 160) % 360},80%,45%)` : '#b07c1e';
+      g.fillText(TIERS[tier].label, 0, fs * 0.62);
+    }
+    g.restore();
+  }
+
   function draw(now) {
     g.fillStyle = COL.wood; g.fillRect(0, 0, W, Hh);
     if (!song) return;
     boards.forEach(b => drawBoard(b, now));
     drawFx();
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.font = `700 ${Math.round(Math.min(W * 0.16, 64))}px "Gowun Batang", serif`;
-    g.fillStyle = 'rgba(156,47,39,.92)';
-    if (mode !== 'menu') {
-      if (duo) {
-        const fs = Math.round(Math.min(W * 0.1, 48));
-        g.font = `700 ${fs}px "Gowun Batang", serif`;
-        const tw = Math.max(fs * 1.4, g.measureText(String(score)).width + 24);
-        g.fillStyle = COL.wood; rr(W / 2 - tw / 2, 12, tw, fs + 16, (fs + 16) / 2); g.fill();
-        g.fillStyle = COL.brass; g.fillText(String(score), W / 2, 20);
-      } else g.fillText(String(score), W / 2, 18);
-    }
+    if (mode !== 'menu') drawScore(now);
     if (mode === 'play' || mode === 'fail') {
       g.font = `600 13px "IBM Plex Sans KR", sans-serif`;
       g.textAlign = 'left'; g.fillStyle = 'rgba(60,40,30,.6)';
