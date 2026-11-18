@@ -576,6 +576,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     song = sg || song;
     buildAccomp(song);
     clearTimeout(overTimer);
+    fx.length = 0;
     s = 0; score = 0; bpmMax = 0; fail = null; rewind = null; started = false;
     makeBoards(); ensureRows();
     mode = 'ready';
@@ -587,9 +588,54 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (song.drum !== (menuKind === 'drum')) setKind(song.drum ? 'drum' : 'piano');
   }
 
+  // ---------- evaporation effect ----------
+  // A hit tile vanishes on the spot: it puffs up and fades in ~0.2s while
+  // vapor and a few brass sparks drift up from where it was.
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fx = [];
+  function evaporate(b, x, y, w, h) {
+    if (reduceMotion) return;
+    const n = Math.max(12, Math.min(46, Math.round(w * h / 220)));
+    const spark = b.role === 'accomp' ? '95,154,146' : '224,186,104';
+    for (let k = 0; k < n; k++) {
+      const isSpark = Math.random() < 0.3;
+      fx.push({
+        x: x + Math.random() * w, y: y + Math.random() * h, s0: s,
+        vx: (Math.random() - 0.5) * 50, vy: -(50 + Math.random() * 110),
+        r: isSpark ? 1.2 + Math.random() * 1.8 : 4 + Math.random() * 7,
+        life: 0.45 + Math.random() * 0.45, t: 0,
+        color: isSpark ? spark : '38,33,40', spark: isSpark,
+      });
+    }
+  }
+  function evaporateRow(b, i) {
+    const r = b.rows[i], lw = b.w / 4, len = r.len || 1;
+    const top = topOf(i + len - 1);
+    evaporate(b, b.x0 + r.lane * lw, top, lw, topOf(i) + H - top);
+  }
+  function stepFx(dt) {
+    for (let k = fx.length - 1; k >= 0; k--) {
+      const p = fx[k];
+      p.t += dt;
+      if (p.t >= p.life) fx.splice(k, 1);
+    }
+  }
+  function drawFx() {
+    for (const p of fx) {
+      const k = p.t / p.life;
+      const x = p.x + p.vx * p.t;
+      const y = p.y + (s - p.s0) * H + p.vy * p.t - 40 * p.t * p.t;
+      const rad = p.spark ? p.r : p.r * (1 + k * 2.2);
+      const a = p.spark ? (1 - k) : 0.26 * (1 - k) * (1 - k);
+      g.fillStyle = `rgba(${p.color},${a})`;
+      g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    }
+  }
+
   function hit(b, i, src) {
     const r = b.rows[i];
     r.hitAt = performance.now();
+    if (!(r.len > 1)) evaporateRow(b, i);
     b.next = i + (r.len || 1);
     if (r.len > 1) { r.state = 'holding'; r.sAt = s; r.fill = 1; b.hold = { i, len: r.len, done: 1, src }; }
     playRow(b, i);
@@ -607,7 +653,10 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   }
   function release(src) {
     boards.forEach(b => {
-      if (b.hold && b.hold.src === src) { b.rows[b.hold.i].state = 'released'; b.hold = null; }
+      if (b.hold && b.hold.src === src) {
+        const r = b.rows[b.hold.i];
+        r.state = 'released'; r.goneAt = performance.now(); evaporateRow(b, b.hold.i); b.hold = null;
+      }
     });
   }
   function updateHolds() {
@@ -617,7 +666,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       const r = b.rows[h.i];
       r.fill = Math.min(h.len, 1 + (s - r.sAt));
       while (h.done < h.len && s >= r.sAt + h.done) { playRow(b, h.i + h.done); h.done++; }
-      if (h.done >= h.len && r.fill >= h.len) { r.state = 'done'; b.hold = null; }
+      if (h.done >= h.len && r.fill >= h.len) { r.state = 'done'; r.goneAt = performance.now(); evaporateRow(b, h.i); b.hold = null; }
     });
   }
 
@@ -666,6 +715,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
         if (topOf(b.next) > Hh - H * 0.2) { lose(b, b.rows[b.next].lane, b.next, '건반을 놓쳤어요'); break; }
       }
     }
+    stepFx(dt);
     if (rewind) {
       const k = Math.min(1, (now - rewind.at) / 350);
       s = rewind.from + (rewind.to - rewind.from) * (1 - Math.pow(1 - k, 3));
@@ -728,12 +778,13 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
           }
         }
       } else {
-        const k = Math.min(1, (now - r.hitAt) / 260);
-        g.fillStyle = `rgba(25,22,26,${0.22 * (1 - k) + 0.07})`;
-        rr(x + pad, y + pad, lw - pad * 2, H - pad * 2, 4); g.fill();
-        if (k < 1) {
-          g.strokeStyle = b.role === 'accomp' ? `rgba(95,154,146,${1 - k})` : `rgba(214,176,98,${1 - k})`; g.lineWidth = 3;
-          g.beginPath(); g.arc(x + lw / 2, y + H / 2, 8 + k * lw * 0.55, 0, Math.PI * 2); g.stroke();
+        // vanish: puff up slightly and fade out, then nothing is left
+        const k = (now - r.hitAt) / 200;
+        if (k < 1 && !reduceMotion) {
+          const grow = 1 + 0.12 * k, w = (lw - pad * 2) * grow, hh = (H - pad * 2) * grow;
+          g.globalAlpha = (1 - k) * (1 - k);
+          g.fillStyle = COL.ebony; rr(x + lw / 2 - w / 2, y + H / 2 - hh / 2, w, hh, 4); g.fill();
+          g.globalAlpha = 1;
         }
       }
     }
@@ -765,6 +816,17 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   }
 
   function drawLong(b, r, i, x0, lw) {
+    if (r.goneAt) {
+      const k = (performance.now() - r.goneAt) / 200;
+      if (k >= 1 || reduceMotion) return;
+      g.globalAlpha = (1 - k) * (1 - k);
+      drawLongBody(b, r, i, x0, lw);
+      g.globalAlpha = 1;
+      return;
+    }
+    drawLongBody(b, r, i, x0, lw);
+  }
+  function drawLongBody(b, r, i, x0, lw) {
     const top = topOf(i + r.len - 1), bottom = topOf(i) + H, pad = 1.5;
     if (top > Hh) return;
     const x = x0 + r.lane * lw, w = lw - pad * 2, h = bottom - top - pad * 2;
@@ -801,6 +863,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     g.fillStyle = COL.wood; g.fillRect(0, 0, W, Hh);
     if (!song) return;
     boards.forEach(b => drawBoard(b, now));
+    drawFx();
     g.textAlign = 'center'; g.textBaseline = 'top';
     g.font = `700 ${Math.round(Math.min(W * 0.16, 64))}px "Gowun Batang", serif`;
     g.fillStyle = 'rgba(156,47,39,.92)';
