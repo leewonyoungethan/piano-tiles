@@ -595,14 +595,14 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   const fx = [];
   function evaporate(b, x, y, w, h) {
     if (reduceMotion) return;
-    const n = Math.max(12, Math.min(46, Math.round(w * h / 220)));
+    const n = Math.max(30, Math.min(90, Math.round(w * h / 90)));
     const spark = b.role === 'accomp' ? '95,154,146' : '224,186,104';
     for (let k = 0; k < n; k++) {
       const isSpark = Math.random() < 0.3;
       fx.push({
         x: x + Math.random() * w, y: y + Math.random() * h, s0: s,
-        vx: (Math.random() - 0.5) * 50, vy: -(50 + Math.random() * 110),
-        r: isSpark ? 1.2 + Math.random() * 1.8 : 4 + Math.random() * 7,
+        vx: (Math.random() - 0.5) * 36, vy: -(30 + Math.random() * 90),
+        r: isSpark ? 0.6 + Math.random() * 0.8 : 0.7 + Math.random() * 1.3,
         life: 0.45 + Math.random() * 0.45, t: 0,
         color: isSpark ? spark : '38,33,40', spark: isSpark,
       });
@@ -625,8 +625,8 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       const k = p.t / p.life;
       const x = p.x + p.vx * p.t;
       const y = p.y + (s - p.s0) * H + p.vy * p.t - 40 * p.t * p.t;
-      const rad = p.spark ? p.r : p.r * (1 + k * 2.2);
-      const a = p.spark ? (1 - k) : 0.26 * (1 - k) * (1 - k);
+      const rad = p.r * (1 - 0.4 * k);
+      const a = p.spark ? (1 - k) : 0.7 * (1 - k);
       g.fillStyle = `rgba(${p.color},${a})`;
       g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
     }
