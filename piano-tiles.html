@@ -907,10 +907,17 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     { at: 200, label: '전설' },
     { at: 400, label: '신' },
   ];
+  // Harder songs light up sooner: tier thresholds shrink with the song's level.
+  const LEVEL_SCALE = { '입문': 1, '쉬움': 0.85, '보통': 0.7, '도전': 0.55, '고수': 0.42, '지옥': 0.3, '하데스': 0.2, '죽음': 0.12 };
+  function tierThreshold(i) {
+    const lvl = (song.by.split('·').pop() || '').trim();
+    const k = LEVEL_SCALE[lvl] || 1;
+    return i === 0 ? 0 : Math.max(i * 2, Math.round(TIERS[i].at * k));
+  }
   let shownScore = -1, bumpAt = 0, tierAt = 0, lastTier = 0;
   function drawScore(now) {
     let tier = 0;
-    TIERS.forEach((tr, i) => { if (score >= tr.at) tier = i; });
+    TIERS.forEach((tr, i) => { if (score >= tierThreshold(i)) tier = i; });
     if (score !== shownScore) { if (score > shownScore) bumpAt = now; shownScore = score; }
     if (tier !== lastTier) { if (tier > lastTier) tierAt = now; lastTier = tier; }
     const time = now / 1000, text = String(score);
