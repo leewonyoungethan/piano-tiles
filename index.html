@@ -544,15 +544,22 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     layoutBoards();
   }
 
+  // Long tiles: a head row with len > 1, followed by (len - 1) continuation rows
+  // in the same lane. Holding the head plays the continuation notes in time.
   function addRow(b) {
     if (song.drum && b.role !== 'accomp') { b.rows.push({ lane: song.pattern[b.rows.length % song.pattern.length], hitAt: 0 }); return; }
+    if (b.pendingCont > 0) { b.rows.push({ lane: b.contLane, cont: true, hitAt: 0 }); b.pendingCont--; return; }
     const prev = b.rows.length ? b.rows[b.rows.length - 1].lane : -1;
     let lane = Math.floor(Math.random() * 4);
     if (lane === prev && Math.random() < 0.8) lane = (lane + 1 + Math.floor(Math.random() * 3)) % 4;
-    b.rows.push({ lane, hitAt: 0 });
+    let len = 1;
+    if (b.rows.length > 3 && (b.sinceLong || 0) > 4 && Math.random() < 0.16) len = Math.random() < 0.6 ? 2 : 3;
+    b.rows.push({ lane, len, hitAt: 0 });
+    if (len > 1) { b.pendingCont = len - 1; b.contLane = lane; b.sinceLong = 0; }
+    else b.sinceLong = (b.sinceLong || 0) + 1;
   }
   function ensureRows() {
-    boards.forEach(b => { while (!b.rows.length || topOf(b.rows.length - 1) > -H) addRow(b); });
+    boards.forEach(b => { while (!b.rows.length || topOf(b.rows.length - 1) > -H || b.rows.length <= b.next) addRow(b); });
   }
 
   function makeBoards() {
@@ -580,9 +587,16 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (song.drum !== (menuKind === 'drum')) setKind(song.drum ? 'drum' : 'piano');
   }
 
-  function hit(b, i) {
-    b.rows[i].hitAt = performance.now();
-    score++; b.next = i + 1;
+  function hit(b, i, src) {
+    const r = b.rows[i];
+    r.hitAt = performance.now();
+    b.next = i + (r.len || 1);
+    if (r.len > 1) { r.state = 'holding'; r.sAt = s; r.fill = 1; b.hold = { i, len: r.len, done: 1, src }; }
+    playRow(b, i);
+    ensureRows();
+  }
+  function playRow(b, i) {
+    score++;
     const acc = song.accomp[i % song.accomp.length];
     if (b.role === 'accomp') playAccomp(acc, 1);
     else if (b.role === 'melody') playMelody(i);
@@ -590,12 +604,27 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       playMelody(i);
       if (soloAccomp && !song.steps) playAccomp(acc, 0.45); // solo: optional soft accompaniment
     }
-    ensureRows();
+  }
+  function release(src) {
+    boards.forEach(b => {
+      if (b.hold && b.hold.src === src) { b.rows[b.hold.i].state = 'released'; b.hold = null; }
+    });
+  }
+  function updateHolds() {
+    boards.forEach(b => {
+      const h = b.hold;
+      if (!h) return;
+      const r = b.rows[h.i];
+      r.fill = Math.min(h.len, 1 + (s - r.sAt));
+      while (h.done < h.len && s >= r.sAt + h.done) { playRow(b, h.i + h.done); h.done++; }
+      if (h.done >= h.len && r.fill >= h.len) { r.state = 'done'; b.hold = null; }
+    });
   }
 
   function lose(b, lane, row, reason) {
     mode = 'fail';
     fail = { b, lane, row, at: performance.now() };
+    boards.forEach(bd => { if (bd.hold) { bd.rows[bd.hold.i].state = 'released'; bd.hold = null; } });
     clang();
     rewind = { from: s, to: Math.min(s, ((row + 2) * H - Hh + 1.6 * H) / H), at: performance.now() };
     const id = recordId();
@@ -612,14 +641,14 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     }, 1100);
   }
 
-  function tap(b, lane) {
+  function tap(b, lane, src) {
     if (!b || lane < 0 || lane > 3) return;
     if (mode === 'ready' || (mode === 'play' && b.next === 0)) {
-      if (lane === b.rows[0].lane) { mode = 'play'; hit(b, 0); }
+      if (lane === b.rows[0].lane) { mode = 'play'; hit(b, 0, src); }
       return;
     }
     if (mode !== 'play') return;
-    if (lane === b.rows[b.next].lane) hit(b, b.next);
+    if (lane === b.rows[b.next].lane) hit(b, b.next, src);
     else lose(b, lane, b.next, '흰 칸을 눌렀어요');
   }
 
@@ -631,6 +660,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       const v = rps();
       bpmMax = Math.max(bpmMax, Math.round(v * 60));
       s += v * dt;
+      updateHolds();
       ensureRows();
       for (const b of boards) {
         if (topOf(b.next) > Hh - H * 0.2) { lose(b, b.rows[b.next].lane, b.next, '건반을 놓쳤어요'); break; }
@@ -662,12 +692,15 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     for (let i = 1; i < 4; i++) g.fillRect(Math.round(x0 + i * lw) - 0.5, 0, 1, Hh);
 
     const drumLanes = song.drum && b.role !== 'accomp';
-    const first = Math.max(0, Math.floor(s - 2));
+    const first = Math.max(0, Math.floor(s - 5));
     for (let i = first; i < b.rows.length; i++) {
+      const r = b.rows[i];
+      if (r.cont) continue;
       const y = topOf(i);
-      if (y > Hh) continue;
       if (y + H < 0) break;
-      const r = b.rows[i], x = x0 + r.lane * lw, pad = 1.5;
+      if (r.len > 1) { drawLong(b, r, i, x0, lw); continue; }
+      if (y > Hh) continue;
+      const x = x0 + r.lane * lw, pad = 1.5;
       if (!r.hitAt) {
         const tg = g.createLinearGradient(0, y, 0, y + H);
         tg.addColorStop(0, '#2c272c'); tg.addColorStop(0.85, COL.ebony); tg.addColorStop(1, '#0d0b0e');
@@ -731,6 +764,39 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     g.restore();
   }
 
+  function drawLong(b, r, i, x0, lw) {
+    const top = topOf(i + r.len - 1), bottom = topOf(i) + H, pad = 1.5;
+    if (top > Hh) return;
+    const x = x0 + r.lane * lw, w = lw - pad * 2, h = bottom - top - pad * 2;
+    const tg = g.createLinearGradient(0, top, 0, bottom);
+    tg.addColorStop(0, '#2c272c'); tg.addColorStop(0.9, COL.ebony); tg.addColorStop(1, '#0d0b0e');
+    g.fillStyle = r.state === 'done' ? 'rgba(25,22,26,.12)' : tg;
+    rr(x + pad, top + pad, w, h, 6); g.fill();
+    // guide line and start dot, so a long tile reads as "press and hold"
+    if (!r.hitAt) {
+      g.fillStyle = 'rgba(214,176,98,.55)';
+      g.fillRect(x + lw / 2 - 1, top + 14, 2, h - 40);
+      g.beginPath(); g.arc(x + lw / 2, bottom - 22, Math.min(9, lw * 0.1), 0, Math.PI * 2); g.fill();
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = `700 ${Math.round(Math.min(lw * 0.15, 14))}px "IBM Plex Sans KR", sans-serif`;
+      g.fillStyle = 'rgba(246,241,229,.7)';
+      g.fillText('길게', x + lw / 2, bottom - 46);
+    } else if (r.state !== 'done') {
+      const fh = Math.min(h, (r.fill || 1) * H - pad * 2);
+      const fg = g.createLinearGradient(0, bottom - fh, 0, bottom);
+      const a = r.state === 'released' ? 0.35 : 0.85;
+      fg.addColorStop(0, `rgba(240,205,120,${a})`); fg.addColorStop(1, `rgba(214,176,98,${a})`);
+      g.fillStyle = fg; rr(x + pad, bottom - pad - fh, w, fh, 6); g.fill();
+      if (r.state === 'holding') {
+        g.fillStyle = 'rgba(255,240,200,.9)';
+        g.fillRect(x + pad + 3, bottom - pad - fh, w - 6, 3);
+      }
+    } else {
+      g.strokeStyle = 'rgba(214,176,98,.5)'; g.lineWidth = 2;
+      rr(x + pad + 1, top + pad + 1, w - 2, h - 2, 6); g.stroke();
+    }
+  }
+
   function draw(now) {
     g.fillStyle = COL.wood; g.fillRect(0, 0, W, Hh);
     if (!song) return;
@@ -760,8 +826,11 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     const rect = cv.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (W / rect.width);
     const b = boards.find(bd => x >= bd.x0 && x < bd.x0 + bd.w);
-    if (b) tap(b, Math.floor(((x - b.x0) / b.w) * 4));
+    if (b) tap(b, Math.floor(((x - b.x0) / b.w) * 4), 'p' + e.pointerId);
   });
+  ['pointerup', 'pointercancel'].forEach(ev => window.addEventListener(ev, e => release('p' + e.pointerId)));
+  window.addEventListener('keyup', e => release('k' + e.code));
+  window.addEventListener('blur', () => boards.forEach(b => { if (b.hold) release(b.hold.src); }));
   window.addEventListener('keydown', e => {
     if (e.repeat) return;
     if (e.key === 'Escape' && mode !== 'menu') { e.preventDefault(); showMenu(); return; }
@@ -770,7 +839,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       for (const b of boards) {
         let lane = b.codes[e.code];
         if (lane === undefined) lane = b.jamo[k];
-        if (lane !== undefined) { e.preventDefault(); audio(); tap(b, lane); return; }
+        if (lane !== undefined) { e.preventDefault(); audio(); tap(b, lane, 'k' + e.code); return; }
       }
     }
     if (mode === 'over' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); audio(); newGame(); }
@@ -778,7 +847,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
 
   let menuKind = 'piano';
   const LEDE = {
-    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 반주는 위의 ‘반주’ 버튼으로 켤 수 있어요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
+    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 긴 건반은 꾹 누르고 있으면 음이 이어져요. 반주는 위의 ‘반주’ 버튼으로 켤 수 있어요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
     drum: '네 줄이 각각 드럼 하나예요. 떨어지는 패드를 순서대로 치면 비트가 완성됩니다. 놓치거나 빈 칸을 치면 끝나요.',
     duo: '왼쪽 사람은 반주(왼손), 오른쪽 사람은 멜로디(오른손)를 맡아요. 둘이 박자를 맞춰야 곡이 완성되고, 한 명이라도 놓치면 끝나요.',
   };
