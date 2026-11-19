@@ -90,6 +90,20 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .wallet b { color: var(--brass); font-size: 1.05rem; }
 .song-btn .best .st { display: block; text-align: right; font-size: .9rem; letter-spacing: .08em; }
 .song-btn .best .st .off { color: color-mix(in srgb, var(--muted) 45%, transparent); }
+.wallet-row { align-items: center; gap: 10px; }
+.wallet-row button { padding: 4px 14px; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; width: 100%; max-width: 420px; }
+.shop-item { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--brass) 40%, transparent); background: color-mix(in srgb, var(--wood-2) 80%, transparent); }
+.shop-item.on { border-color: var(--brass); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brass) 45%, transparent); }
+.swatch { height: 46px; border-radius: 6px; border: 1px solid rgba(255,255,255,.12); position: relative; overflow: hidden; }
+.swatch .key { position: absolute; left: 30%; top: 0; width: 40%; height: 70%; border-radius: 0 0 4px 4px; }
+.shop-item .nm { font-family: var(--display); font-weight: 700; font-size: 1rem; }
+.shop-item .pr { font-size: .78rem; color: var(--brass); font-variant-numeric: tabular-nums; }
+.shop-item button { padding: 5px 10px; font-size: .82rem; }
+.shop-item button.buy { background: var(--brass); color: var(--wood); border-color: var(--brass); font-weight: 600; }
+.shop-item button:disabled { opacity: .45; cursor: default; }
+.shop-msg { margin: 0; min-height: 1.2em; font-size: .85rem; color: var(--brass); }
 .level-head { font-size: .72rem; letter-spacing: .14em; color: var(--brass); padding: 10px 2px 2px; text-align: left; font-weight: 600; }
 .level-head:first-child { padding-top: 0; }
 .level-head[data-level="지옥"], .level-head[data-level="하데스"], .level-head[data-level="죽음"] { color: #e0705f; }
@@ -126,7 +140,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     <div class="overlay" id="menu">
       <div class="eyebrow" id="menuEyebrow">4 LANES · BLACK KEYS ONLY</div>
       <h1>건반 소나기</h1>
-      <div class="wallet" id="wallet"></div>
+      <div class="row wallet-row"><div class="wallet" id="wallet"></div><button type="button" id="shopBtn">상점</button></div>
       <div class="row">
       <div class="tabs" role="group" aria-label="게임 종류">
         <button type="button" id="tabPiano" aria-pressed="true">피아노</button>
@@ -144,6 +158,15 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       <p class="lede" id="menuLede">떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.</p>
       <div class="chips" id="levelChips" role="group" aria-label="난이도"></div>
       <div class="songs" id="songs"></div>
+    </div>
+    <div class="overlay" id="shop" hidden>
+      <div class="eyebrow">포인트로 꾸미기</div>
+      <h2>상점</h2>
+      <div class="wallet" id="shopWallet"></div>
+      <div class="tabs" role="group" aria-label="상점 종류" id="shopTabs"></div>
+      <div class="shop-grid" id="shopGrid"></div>
+      <p class="shop-msg" id="shopMsg" role="status"></p>
+      <button class="primary" id="shopClose" type="button">돌아가기</button>
     </div>
     <div class="overlay" id="over" hidden>
       <div class="eyebrow" id="overReason">놓쳤어요</div>
@@ -1059,6 +1082,56 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     set(k, v) { try { localStorage.setItem('keyshower:' + k, String(v)); } catch {} },
   };
 
+  // ---------- shop ----------
+  // Cosmetics bought with points: key skins, burst colors, keybed backgrounds, instruments.
+  const SHOP = {
+    tile: { label: '건반', items: [
+      { id: 'ebony',    name: '흑단',      price: 0,    c: ['#2c272c', '#19161a', '#0d0b0e'] },
+      { id: 'navy',     name: '자정 남색', price: 300,  c: ['#2f3d78', '#1b2552', '#0d1330'] },
+      { id: 'ruby',     name: '루비',      price: 500,  c: ['#8f2a3a', '#6a1724', '#3b0b13'] },
+      { id: 'emerald',  name: '에메랄드',  price: 500,  c: ['#1f6e55', '#11503d', '#072a20'] },
+      { id: 'amethyst', name: '자수정',    price: 800,  c: ['#6b3fa0', '#4a2577', '#26103f'] },
+      { id: 'gold',     name: '황금',      price: 2000, c: ['#e9c46a', '#b8871b', '#6e4c08'] },
+      { id: 'aurora',   name: '오로라',    price: 5000, anim: ['#4f46e5', '#0ea5e9', '#10b981', '#a855f7', '#ec4899'] },
+    ] },
+    fx: { label: '효과', items: [
+      { id: 'gold',    name: '금빛',   price: 0,    tone: 'gold', sw: '#f0cf7a' },
+      { id: 'sakura',  name: '벚꽃',   price: 300,  tone: 'pink', sw: '#f9a8d4' },
+      { id: 'sky',     name: '하늘',   price: 300,  tone: 'sky', sw: '#93c5fd' },
+      { id: 'leaf',    name: '새싹',   price: 500,  tone: 'teal', sw: '#86efac' },
+      { id: 'fire',    name: '불꽃',   price: 800,  tone: 'fire', sw: '#fb923c' },
+      { id: 'rainbow', name: '무지개', price: 2000, tone: 'rainbow', sw: 'linear-gradient(90deg,#f472b6,#fbbf24,#34d399,#60a5fa,#a78bfa)' },
+    ] },
+    bg: { label: '배경', items: [
+      { id: 'ivory',    name: '상아',   price: 0,    c: ['#e7dfcd', '#f6f1e5'] },
+      { id: 'cream',    name: '크림',   price: 200,  c: ['#f3e6c4', '#fdf7e6'] },
+      { id: 'mint',     name: '민트',   price: 300,  c: ['#c9eadf', '#effaf5'] },
+      { id: 'lavender', name: '라벤더', price: 400,  c: ['#ddd3f2', '#f6f2fd'] },
+      { id: 'skyblue',  name: '하늘색', price: 400,  c: ['#cfe3f7', '#f1f7fd'] },
+      { id: 'sunset',   name: '노을',   price: 1000, c: ['#f8c6a8', '#fdeee0'] },
+      { id: 'blossom',  name: '벚꽃길', price: 1500, c: ['#f6c7d8', '#fff0f5'] },
+    ] },
+    sound: { label: '소리', items: [
+      { id: 'tongue',   name: '텅드럼', price: 0 },
+      { id: 'musicbox', name: '오르골', price: 500 },
+      { id: 'xylo',     name: '실로폰', price: 600 },
+      { id: 'chip',     name: '8비트',  price: 800 },
+      { id: 'piano',    name: '피아노', price: 1000 },
+    ] },
+  };
+  const owned = {
+    load() { try { return JSON.parse(localStorage.getItem('keyshower:owned') || '{}'); } catch { return {}; } },
+    has(cat, id) { return SHOP[cat].items[0].id === id || !!this.load()[cat + ':' + id]; },
+    add(cat, id) { const o = this.load(); o[cat + ':' + id] = 1; try { localStorage.setItem('keyshower:owned', JSON.stringify(o)); } catch {} },
+  };
+  const equipped = { tile: 'ebony', fx: 'gold', bg: 'ivory', sound: 'tongue' };
+  try { Object.assign(equipped, JSON.parse(localStorage.getItem('keyshower:equipped') || '{}')); } catch {}
+  const item = cat => SHOP[cat].items.find(it => it.id === equipped[cat]) || SHOP[cat].items[0];
+  function equip(cat, id) {
+    equipped[cat] = id;
+    try { localStorage.setItem('keyshower:equipped', JSON.stringify(equipped)); } catch {}
+  }
+
   // ---------- audio: steel tongue drum ----------
   // Struck steel tongue: soft mallet tick, a sine fundamental with a slowly
   // beating twin, weak octave + inharmonic overtones, long ring into a hall.
@@ -1110,6 +1183,28 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (!audio()) return;
     const t = ac.currentTime + 0.002, f = 440 * Math.pow(2, (m - 69) / 12);
     const v = 0.32 * vel * (0.92 + Math.random() * 0.16);
+    const inst = equipped.sound;
+    if (inst === 'musicbox') {          // small steel comb: bright, short, bell-like
+      partial(f * 2, v * 0.8, 1.3, t, false); partial(f * 4, v * 0.25, 0.5, t, false); partial(f * 6.3, v * 0.08, 0.2, t, false);
+      return;
+    }
+    if (inst === 'xylo') {              // wooden bars: quick decay, hollow 4th partial
+      partial(f * 2, v, 0.45, t, false); partial(f * 7.8, v * 0.2, 0.12, t, false); partial(f * 18, v * 0.06, 0.04, t, false);
+      return;
+    }
+    if (inst === 'chip') {              // 8-bit square wave with a tiny pitch blip
+      const o = ac.createOscillator(), gn = ac.createGain(); o.type = 'square';
+      o.frequency.setValueAtTime(f * 2, t); o.frequency.setValueAtTime(f, t + 0.025);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(v * 0.28, t + 0.004);
+      gn.gain.setValueAtTime(v * 0.22, t + 0.12); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      o.connect(gn); gn.connect(bus); o.start(t); o.stop(t + 0.4);
+      return;
+    }
+    if (inst === 'piano') {             // hammered string: rich harmonics fading at different rates
+      partial(f, v, 2.4, t, false); partial(f * 2, v * 0.4, 1.4, t, false); partial(f * 3, v * 0.2, 0.8, t, false);
+      partial(f * 4, v * 0.1, 0.5, t, false); partial(f * 1.002, v * 0.3, 2.0, t, false);
+      return;
+    }
     const ring = 3.6 - Math.max(0, m - 60) * 0.06;     // higher tongues ring shorter
     partial(f, v, ring, t, true);                       // fundamental
     partial(f + 0.7, v * 0.45, ring * 0.9, t, true);   // slow beating shimmer
@@ -1365,14 +1460,21 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   const SPRITE = {
     gold: glowSprite('rgba(255,214,120,1)', 'rgba(232,170,60,.35)'),
     teal: glowSprite('rgba(150,226,214,1)', 'rgba(70,170,158,.35)'),
+    pink: glowSprite('rgba(255,182,213,1)', 'rgba(236,72,153,.35)'),
+    sky:  glowSprite('rgba(170,210,255,1)', 'rgba(59,130,246,.35)'),
+    fire: glowSprite('rgba(255,190,110,1)', 'rgba(239,68,68,.4)'),
   };
+  const RAINBOW = ['gold', 'pink', 'sky', 'teal', 'fire'];
+  const fxTone = () => item('fx').tone;
+  const toneFor = b => b.role === 'accomp' ? 'teal' : (fxTone() === 'rainbow' ? RAINBOW[Math.floor(Math.random() * RAINBOW.length)] : fxTone());
+  const FLASH = { gold: 'rgb(236,196,112)', teal: 'rgb(120,196,184)', pink: 'rgb(249,168,212)', sky: 'rgb(147,197,253)', fire: 'rgb(251,146,60)' };
   function evaporate(b, x, y, w, h) {
     if (reduceMotion) return;
-    const tone = b.role === 'accomp' ? 'teal' : 'gold';
+    const tone = toneFor(b);
     const n = Math.max(18, Math.min(48, Math.round(w * h / 260)));
     for (let k = 0; k < n; k++) {
       fx.push({
-        kind: 'mote', tone, x: x + w * (0.1 + Math.random() * 0.8), y: y + h * (0.1 + Math.random() * 0.8), s0: s,
+        kind: 'mote', tone: fxTone() === 'rainbow' && b.role !== 'accomp' ? toneFor(b) : tone, x: x + w * (0.1 + Math.random() * 0.8), y: y + h * (0.1 + Math.random() * 0.8), s0: s,
         vx: (Math.random() - 0.5) * 30, vy: -(25 + Math.random() * 70),
         size: 5 + Math.random() * 9, sway: Math.random() * 6.28, tw: 8 + Math.random() * 10,
         life: 0.6 + Math.random() * 0.6, t: 0,
@@ -1409,7 +1511,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       } else if (p.kind === 'ring') {
         const e = 1 - Math.pow(1 - k, 3);
         g.globalAlpha = 0.7 * (1 - k);
-        g.strokeStyle = p.tone === 'teal' ? 'rgb(95,170,160)' : 'rgb(226,184,96)';
+        g.strokeStyle = FLASH[p.tone] || FLASH.gold;
         g.lineWidth = 2.5 * (1 - k) + 0.5;
         g.beginPath(); g.arc(p.x, p.y + scroll, p.r0 + (p.r1 - p.r0) * e, 0, Math.PI * 2); g.stroke();
       } else if (p.kind === 'text') {
@@ -1460,7 +1562,76 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     get() { try { return +localStorage.getItem('keyshower:points') || 0; } catch { return 0; } },
     add(v) { try { localStorage.setItem('keyshower:points', String(this.get() + v)); } catch {} },
   };
-  function showWallet() { $('wallet').innerHTML = `내 포인트 <b>${wallet.get().toLocaleString('ko-KR')}</b>`; }
+  function showWallet() {
+    const html = `내 포인트 <b>${wallet.get().toLocaleString('ko-KR')}</b>`;
+    $('wallet').innerHTML = html; $('shopWallet').innerHTML = html;
+  }
+  let shopCat = 'tile';
+  // pick the right Korean particle from the last syllable's final consonant
+  function josa(word, withFinal, without) {
+    const c = word.charCodeAt(word.length - 1) - 0xac00;
+    if (c < 0 || c > 11171) return without;
+    const fin = c % 28;
+    if (withFinal === '으로' && fin === 8) return without;   // ㄹ final takes 로
+    return fin ? withFinal : without;
+  }
+  function swatchFor(cat, it) {
+    const sw = document.createElement('div'); sw.className = 'swatch';
+    if (cat === 'tile') {
+      sw.style.background = 'linear-gradient(#f6f1e5,#e7dfcd)';
+      const k = document.createElement('div'); k.className = 'key';
+      k.style.background = it.anim ? `linear-gradient(135deg,${it.anim.join(',')})` : `linear-gradient(${it.c[0]},${it.c[1]} 85%,${it.c[2]})`;
+      sw.appendChild(k);
+    } else if (cat === 'bg') {
+      sw.style.background = `linear-gradient(${it.c[0]},${it.c[1]} 30%)`;
+      const k = document.createElement('div'); k.className = 'key'; k.style.background = '#19161a'; sw.appendChild(k);
+    } else if (cat === 'fx') {
+      sw.style.background = '#2a1613';
+      sw.style.backgroundImage = `radial-gradient(circle at 30% 40%, ${it.sw.startsWith('linear') ? '#f472b6' : it.sw} 0 3px, transparent 4px), radial-gradient(circle at 60% 30%, ${it.sw.startsWith('linear') ? '#60a5fa' : it.sw} 0 2px, transparent 3px), radial-gradient(circle at 75% 65%, ${it.sw.startsWith('linear') ? '#34d399' : it.sw} 0 3px, transparent 4px), radial-gradient(circle at 45% 70%, ${it.sw.startsWith('linear') ? '#fbbf24' : it.sw} 0 2px, transparent 3px)`;
+    } else {
+      sw.style.background = '#2a1613'; sw.style.display = 'grid'; sw.style.placeItems = 'center';
+      sw.style.color = '#f0cf7a'; sw.style.fontSize = '1.3rem'; sw.textContent = '♪';
+    }
+    return sw;
+  }
+  function renderShop() {
+    showWallet();
+    const tabs = $('shopTabs'); tabs.textContent = '';
+    Object.entries(SHOP).forEach(([cat, def]) => {
+      const bt = document.createElement('button'); bt.type = 'button'; bt.textContent = def.label;
+      bt.setAttribute('aria-pressed', String(cat === shopCat));
+      bt.addEventListener('click', () => { shopCat = cat; $('shopMsg').textContent = ''; renderShop(); });
+      tabs.appendChild(bt);
+    });
+    const grid = $('shopGrid'); grid.textContent = '';
+    SHOP[shopCat].items.forEach(it => {
+      const card = document.createElement('div');
+      const has = owned.has(shopCat, it.id), on = equipped[shopCat] === it.id;
+      card.className = 'shop-item' + (on ? ' on' : '');
+      card.appendChild(swatchFor(shopCat, it));
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name; card.appendChild(nm);
+      const pr = document.createElement('div'); pr.className = 'pr';
+      pr.textContent = it.price ? `${it.price.toLocaleString('ko-KR')} 포인트` : '기본'; card.appendChild(pr);
+      const bt = document.createElement('button'); bt.type = 'button';
+      if (on) { bt.textContent = '사용 중'; bt.disabled = true; }
+      else if (has) { bt.textContent = '사용하기'; }
+      else { bt.textContent = '사기'; bt.className = 'buy'; if (wallet.get() < it.price) bt.disabled = true; }
+      bt.addEventListener('click', () => {
+        if (!has) {
+          if (wallet.get() < it.price) return;
+          wallet.add(-it.price); owned.add(shopCat, it.id);
+          $('shopMsg').textContent = `${it.name}${josa(it.name, '을', '를')} 샀어요! 바로 적용했어요.`;
+        } else $('shopMsg').textContent = `${it.name}${josa(it.name, '으로', '로')} 바꿨어요.`;
+        equip(shopCat, it.id);
+        if (shopCat === 'sound') { audio(); note(72, 0.8); setTimeout(() => note(76, 0.7), 140); setTimeout(() => note(79, 0.7), 280); }
+        renderShop();
+      });
+      card.appendChild(bt);
+      grid.appendChild(card);
+    });
+  }
+  function openShop() { menu.hidden = true; $('shop').hidden = false; $('shopMsg').textContent = ''; renderShop(); }
+  function closeShop() { $('shop').hidden = true; showMenu(); }
   function drawProgress(now) {
     const goal = (laps + 1) * STAGE_GOAL, from = laps * STAGE_GOAL;
     const k = Math.max(0, Math.min(1, (score - from) / STAGE_GOAL));
@@ -1631,12 +1802,21 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
   }
 
+  function skinStops(grad, now) {
+    const sk = item('tile');
+    if (sk.anim) {
+      const k = (now / 1000 * 0.25) % 1, n = sk.anim.length;
+      const a = sk.anim[Math.floor(k * n) % n], b2 = sk.anim[(Math.floor(k * n) + 1) % n];
+      grad.addColorStop(0, a); grad.addColorStop(0.85, b2); grad.addColorStop(1, '#0b0820');
+    } else { grad.addColorStop(0, sk.c[0]); grad.addColorStop(0.85, sk.c[1]); grad.addColorStop(1, sk.c[2]); }
+  }
+  const skinSolid = () => { const sk = item('tile'); return sk.anim ? sk.anim[0] : sk.c[1]; };
   function drawBoard(b, now) {
     const x0 = b.x0, bw = b.w, lw = bw / 4;
     g.save();
     g.beginPath(); g.rect(x0, 0, bw, Hh); g.clip();
     const bg = g.createLinearGradient(0, 0, 0, Hh);
-    bg.addColorStop(0, COL.ivory2); bg.addColorStop(0.25, COL.ivory); bg.addColorStop(1, COL.ivory);
+    const bgc = item('bg').c; bg.addColorStop(0, bgc[0]); bg.addColorStop(0.25, bgc[1]); bg.addColorStop(1, bgc[1]);
     g.fillStyle = bg; g.fillRect(x0, 0, bw, Hh);
     g.fillStyle = 'rgba(60,40,30,.16)';
     for (let i = 1; i < 4; i++) g.fillRect(Math.round(x0 + i * lw) - 0.5, 0, 1, Hh);
@@ -1653,7 +1833,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       const x = x0 + r.lane * lw, pad = 1.5;
       if (!r.hitAt) {
         const tg = g.createLinearGradient(0, y, 0, y + H);
-        tg.addColorStop(0, '#2c272c'); tg.addColorStop(0.85, COL.ebony); tg.addColorStop(1, '#0d0b0e');
+        skinStops(tg, now);
         g.fillStyle = tg; rr(x + pad, y + pad, lw - pad * 2, H - pad * 2, 4); g.fill();
         g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(x + pad + 4, y + pad + 3, lw - pad * 2 - 8, 2);
         if (b.role === 'accomp') {
@@ -1684,9 +1864,9 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
           const grow = 1 + 0.06 * k, w = (lw - pad * 2) * grow, hh = (H - pad * 2) * grow;
           const bx = x + lw / 2 - w / 2, by = y + H / 2 - hh / 2;
           g.globalAlpha = Math.pow(1 - k, 2);
-          g.fillStyle = COL.ebony; rr(bx, by, w, hh, 4); g.fill();
+          g.fillStyle = skinSolid(); rr(bx, by, w, hh, 4); g.fill();
           g.globalAlpha = Math.sin(Math.PI * Math.min(1, k * 1.3)) * 0.85;
-          g.fillStyle = b.role === 'accomp' ? 'rgb(120,196,184)' : 'rgb(236,196,112)';
+          g.fillStyle = FLASH[toneFor(b)] || FLASH.gold;
           rr(bx, by, w, hh, 4); g.fill();
           g.globalAlpha = 1;
         }
@@ -1739,7 +1919,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (top > Hh) return;
     const x = x0 + r.lane * lw, w = lw - pad * 2, h = bottom - top - pad * 2;
     const tg = g.createLinearGradient(0, top, 0, bottom);
-    tg.addColorStop(0, '#2c272c'); tg.addColorStop(0.9, COL.ebony); tg.addColorStop(1, '#0d0b0e');
+    skinStops(tg, performance.now());
     g.fillStyle = r.state === 'done' ? 'rgba(25,22,26,.12)' : tg;
     rr(x + pad, top + pad, w, h, 6); g.fill();
     // guide line and start dot, so a long tile reads as "press and hold"
@@ -2019,7 +2199,9 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       box.appendChild(b);
     });
   }
-  $('menuBtn').addEventListener('click', showMenu);
+  $('menuBtn').addEventListener('click', () => { $('shop').hidden = true; showMenu(); });
+  $('shopBtn').addEventListener('click', openShop);
+  $('shopClose').addEventListener('click', closeShop);
   // Solo accompaniment is off unless the player turns it on (remembered per browser).
   let soloAccomp = false;
   try { soloAccomp = localStorage.getItem('keyshower:accomp') === '1'; } catch {}
