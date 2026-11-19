@@ -91,6 +91,13 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 360px; }
 .chips button { padding: 4px 11px; font-size: .78rem; }
 .chips button[aria-pressed="true"] { background: var(--brass); color: var(--wood); border-color: var(--brass); font-weight: 600; }
+.stars { font-size: 2rem; letter-spacing: .15em; color: var(--brass); line-height: 1; }
+.stars .off { color: color-mix(in srgb, var(--muted) 40%, transparent); }
+.stars .crown { font-size: 1.1rem; letter-spacing: 0; color: #f0cf7a; }
+.wallet { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wallet b { color: var(--brass); font-size: 1.05rem; }
+.song-btn .best .st { display: block; text-align: right; font-size: .9rem; letter-spacing: .08em; }
+.song-btn .best .st .off { color: color-mix(in srgb, var(--muted) 45%, transparent); }
 .level-head { font-size: .72rem; letter-spacing: .14em; color: var(--brass); padding: 10px 2px 2px; text-align: left; font-weight: 600; }
 .level-head:first-child { padding-top: 0; }
 .level-head[data-level="지옥"], .level-head[data-level="하데스"], .level-head[data-level="죽음"] { color: #e0705f; }
@@ -127,6 +134,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     <div class="overlay" id="menu">
       <div class="eyebrow" id="menuEyebrow">4 LANES · BLACK KEYS ONLY</div>
       <h1>건반 소나기</h1>
+      <div class="wallet" id="wallet"></div>
       <div class="row">
       <div class="tabs" role="group" aria-label="게임 종류">
         <button type="button" id="tabPiano" aria-pressed="true">피아노</button>
@@ -148,8 +156,10 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     <div class="overlay" id="over" hidden>
       <div class="eyebrow" id="overReason">놓쳤어요</div>
       <div class="big" id="overScore">0</div>
+      <div class="stars" id="overStars" aria-label="스테이지 별"></div>
       <div class="stats">
         <div><b id="overBest">0</b>최고 기록</div>
+        <div><b id="overPts">+0</b>얻은 포인트</div>
         <div><b id="overBpm">0</b>최고 템포 (♩)</div>
       </div>
       <div class="row">
@@ -1333,7 +1343,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     buildAccomp(song); buildTimeline(song);
     resize();
     clearTimeout(overTimer);
-    fx.length = 0; shownScore = 0; lastTier = 0;
+    fx.length = 0; shownScore = 0; lastTier = 0; laps = 0; clearFx = null;
     s = 0; score = 0; bpmMax = 0; fail = null; rewind = null; started = false;
     makeBoards(); ensureRows();
     mode = 'ready';
@@ -1423,6 +1433,80 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     g.globalAlpha = 1;
   }
 
+  // ---------- stage clear ----------
+  // One full pass through the song clears the stage: ★ for the 1st lap, ★★ 2nd,
+  // ★★★ 3rd, then a crown per extra lap. Each clear pays a bonus that grows with level.
+  const LEVEL_BONUS = { '왕초보': 1, '입문': 1, '쉬움': 1.5, '보통': 2, '도전': 3, '고수': 4, '지옥': 5, '하데스': 7, '죽음': 10 };
+  let laps = 0, clearFx = null;
+  function loopLen() {
+    if (song.drum) return song.pattern.length;
+    if (song.timeline) return song.timeline.length;
+    if (song.steps) return song.steps.length;
+    return song.notes.length;
+  }
+  function stageBonus() { return Math.round(20 * (LEVEL_BONUS[levelOf(song)] || 1)); }
+  function checkLap(b) {
+    const lap = Math.floor(b.next / loopLen());
+    if (lap <= laps) return;
+    laps = lap;
+    const bonus = stageBonus() * Math.min(laps, 3);
+    score += bonus;
+    clearFx = { at: performance.now(), laps, bonus };
+    fanfare();
+    if (!reduceMotion) boards.forEach(bd => {
+      for (let k = 0; k < 4; k++) evaporate(bd, bd.x0 + Math.random() * bd.w * 0.8, Hh * (0.2 + Math.random() * 0.5), bd.w * 0.2, H);
+    });
+  }
+  function fanfare() {
+    if (!audio()) return;
+    [72, 76, 79, 84].forEach((m, k) => setTimeout(() => note(m, 0.7), k * 110));
+    setTimeout(() => { note(84, 0.6); note(88, 0.5); note(91, 0.5); }, 480);
+  }
+  const starsOf = n => Math.min(3, n);
+  function starHTML(n, crowns) {
+    let h = '';
+    for (let k = 0; k < 3; k++) h += k < n ? '★' : '<span class="off">★</span>';
+    if (crowns > 0) h += ` <span class="crown">♛×${crowns}</span>`;
+    return h;
+  }
+  const wallet = {
+    get() { try { return +localStorage.getItem('keyshower:points') || 0; } catch { return 0; } },
+    add(v) { try { localStorage.setItem('keyshower:points', String(this.get() + v)); } catch {} },
+  };
+  function showWallet() { $('wallet').innerHTML = `내 포인트 <b>${wallet.get().toLocaleString('ko-KR')}</b>`; }
+  function drawClear(now) {
+    if (!clearFx) return;
+    const k = (now - clearFx.at) / 1800;
+    if (k >= 1) { clearFx = null; return; }
+    const appear = Math.min(1, k * 6), fade = k > 0.75 ? 1 - (k - 0.75) / 0.25 : 1;
+    const sc = reduceMotion ? 1 : 0.6 + 0.4 * (1 - Math.pow(1 - appear, 3)) + (appear >= 1 ? 0.03 * Math.sin(now / 90) : 0);
+    g.save();
+    g.globalAlpha = fade;
+    g.translate(W / 2, Hh * 0.42); g.scale(sc, sc);
+    const bw = Math.min(W * 0.86, 340), bh = 118;
+    g.fillStyle = 'rgba(42,22,19,.88)'; rr(-bw / 2, -bh / 2, bw, bh, 16); g.fill();
+    g.strokeStyle = 'rgba(214,176,98,.9)'; g.lineWidth = 2; rr(-bw / 2, -bh / 2, bw, bh, 16); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `700 26px "Gowun Batang", serif`; g.fillStyle = '#f0cf7a';
+    g.fillText(clearFx.laps === 1 ? '스테이지 클리어!' : `${clearFx.laps}번째 클리어!`, 0, -26);
+    const n = starsOf(clearFx.laps), crowns = Math.max(0, clearFx.laps - 3);
+    g.font = `700 30px "Gowun Batang", serif`;
+    const txt = crowns ? `★★★ ♛×${crowns}` : '★★★';
+    const tw = g.measureText(txt).width;
+    // stars: filled for earned, dim for the rest
+    let sx = -tw / 2;
+    [...txt].forEach((ch, idx) => {
+      const w = g.measureText(ch).width;
+      g.fillStyle = ch === '★' && idx >= n ? 'rgba(201,184,166,.35)' : '#f0cf7a';
+      g.textAlign = 'left'; g.fillText(ch, sx, 12);
+      sx += w;
+    });
+    g.textAlign = 'center';
+    g.font = `600 14px "IBM Plex Sans KR", sans-serif`; g.fillStyle = 'rgba(246,241,229,.85)';
+    g.fillText(`클리어 보너스 +${clearFx.bonus}`, 0, 44);
+    g.restore();
+  }
+
   function hit(b, i, src) {
     const r = b.rows[i];
     r.hitAt = performance.now();
@@ -1432,6 +1516,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (r.len > 1) { r.state = 'holding'; r.sAt = s; r.fill = 1; b.hold = { i, len: r.len, done: 1, src }; }
     playRow(b, i);
     ensureRows();
+    if (b === boardFor('melody')) checkLap(b);
   }
   function skipRests(b) {
     for (;;) {
@@ -1486,12 +1571,18 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     const id = recordId();
     const best = Math.max(store.get(id), score);
     store.set(id, best);
+    const bestLaps = Math.max(store.get('laps:' + id), laps);
+    store.set('laps:' + id, bestLaps);
+    wallet.add(score);
     clearTimeout(overTimer);
     overTimer = setTimeout(() => {
       $('overReason').textContent = duo ? `${b.name} 쪽이 ${reason}` : reason;
       $('overScore').textContent = score;
       $('overBest').textContent = best;
       $('overBpm').textContent = bpmMax;
+      $('overPts').textContent = `+${score.toLocaleString('ko-KR')}`;
+      $('overStars').innerHTML = laps ? starHTML(starsOf(laps), Math.max(0, laps - 3)) : starHTML(0, 0);
+      $('overReason').textContent = (laps ? '스테이지 클리어 · ' : '') + $('overReason').textContent;
       mode = 'over'; over.hidden = false;
       $('retryBtn').focus({ preventScroll: true });
     }, 1100);
@@ -1782,6 +1873,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (!song) return;
     boards.forEach(b => drawBoard(b, now));
     drawFx();
+    drawClear(now);
     if (mode !== 'menu') drawScore(now);
     if (mode === 'play' || mode === 'fail') {
       g.font = `600 13px "IBM Plex Sans KR", sans-serif`;
@@ -1841,6 +1933,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     renderSongs();
   }
   function showMenu() {
+    showWallet();
     clearTimeout(overTimer);
     mode = 'menu'; over.hidden = true; menu.hidden = false;
     renderSongs();
@@ -1876,7 +1969,10 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       b.innerHTML = `<span class="t"></span><span class="b"></span><span class="best"></span>`;
       b.querySelector('.t').textContent = sg.name;
       b.querySelector('.b').textContent = sg.by;
-      b.querySelector('.best').textContent = best ? `최고 ${best}` : '새 곡';
+      const lp = store.get('laps:' + recordKey(sg));
+      b.querySelector('.best').innerHTML = best
+        ? `<span class="st">${starHTML(starsOf(lp), 0)}</span>최고 ${best}`
+        : '새 곡';
       b.addEventListener('click', () => { audio(); newGame(sg); });
       box.appendChild(b);
     });
