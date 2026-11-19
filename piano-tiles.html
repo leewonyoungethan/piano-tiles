@@ -1265,7 +1265,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   let fail = null, rewind = null, started = false, overTimer = 0;
 
   const topOf = i => Hh - (i + 2) * H + s * H;
-  const rps = () => (song.tempoK || 1) * Math.min(song.max || 9.5, song.start + (score / boards.length) * (song.ramp || 0.018));
+  const rps = () => (song.tempoK || 1) * Math.min(song.max || 9.5, song.start + (hits / boards.length) * (song.ramp || 0.018));
   const boardFor = role => boards.find(b => b.role === role) || boards[0];
 
   // Left player (반주): A S D F / 1–4. Right player (멜로디): J K L ; / arrows. Solo keeps D F J K.
@@ -1335,7 +1335,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     buildAccomp(song); buildTimeline(song);
     resize();
     clearTimeout(overTimer);
-    fx.length = 0; shownScore = 0; lastTier = 0; laps = 0; clearFx = null;
+    fx.length = 0; shownScore = 0; lastTier = 0; laps = 0; clearFx = null; hits = 0;
     s = 0; score = 0; bpmMax = 0; fail = null; rewind = null; started = false;
     makeBoards(); ensureRows();
     mode = 'ready';
@@ -1429,24 +1429,19 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   // One full pass through the song clears the stage: ★ for the 1st lap, ★★ 2nd,
   // ★★★ 3rd, then a crown per extra lap. Each clear pays a bonus that grows with level.
   const LEVEL_BONUS = { '왕초보': 1, '입문': 1, '쉬움': 1.5, '보통': 2, '도전': 3, '고수': 4, '지옥': 5, '하데스': 7, '죽음': 10 };
-  let laps = 0, clearFx = null;
-  function loopLen() {
-    if (song.drum) return song.pattern.length;
-    if (song.timeline) return song.timeline.length;
-    if (song.steps) return song.steps.length;
-    return song.notes.length;
-  }
-  function stageBonus() { return Math.round(20 * (LEVEL_BONUS[levelOf(song)] || 1)); }
-  function checkLap(b) {
-    const lap = Math.floor(b.next / loopLen());
-    if (lap <= laps) return;
-    laps = lap;
-    const bonus = stageBonus() * Math.min(laps, 3);
-    score += bonus;
-    clearFx = { at: performance.now(), laps, bonus };
+  let laps = 0, clearFx = null, hits = 0;
+  const STAGE_GOAL = 500;   // reach 500 points to clear the stage; every further 500 adds a star
+  const LEVEL_PTS = { '왕초보': 1, '입문': 1, '쉬움': 1, '보통': 2, '도전': 2, '고수': 3, '지옥': 4, '하데스': 5, '죽음': 6 };
+  const pts = () => LEVEL_PTS[levelOf(song)] || 1;
+  function addScore(v) { score += v; checkStage(); }
+  function checkStage() {
+    const st = Math.floor(score / STAGE_GOAL);
+    if (st <= laps) return;
+    laps = st;
+    clearFx = { at: performance.now(), laps };
     fanfare();
     if (!reduceMotion) boards.forEach(bd => {
-      for (let k = 0; k < 4; k++) evaporate(bd, bd.x0 + Math.random() * bd.w * 0.8, Hh * (0.2 + Math.random() * 0.5), bd.w * 0.2, H);
+      for (let k = 0; k < 6; k++) evaporate(bd, bd.x0 + Math.random() * bd.w * 0.8, Hh * (0.15 + Math.random() * 0.55), bd.w * 0.2, H);
     });
   }
   function fanfare() {
@@ -1466,6 +1461,21 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     add(v) { try { localStorage.setItem('keyshower:points', String(this.get() + v)); } catch {} },
   };
   function showWallet() { $('wallet').innerHTML = `내 포인트 <b>${wallet.get().toLocaleString('ko-KR')}</b>`; }
+  function drawProgress(now) {
+    const goal = (laps + 1) * STAGE_GOAL, from = laps * STAGE_GOAL;
+    const k = Math.max(0, Math.min(1, (score - from) / STAGE_GOAL));
+    const y = 5, h = 6, x0 = 8, w = W - 16;
+    g.fillStyle = 'rgba(42,22,19,.25)'; rr(x0, y, w, h, 3); g.fill();
+    if (k > 0) {
+      const lg = g.createLinearGradient(x0, 0, x0 + w, 0);
+      lg.addColorStop(0, '#d19a2e'); lg.addColorStop(1, laps ? '#a98cf2' : '#f4d688');
+      g.fillStyle = lg; rr(x0, y, Math.max(h, w * k), h, 3); g.fill();
+    }
+    g.font = `700 12px "IBM Plex Sans KR", sans-serif`; g.textAlign = 'right'; g.textBaseline = 'top';
+    g.fillStyle = 'rgba(60,40,30,.7)';
+    const label = laps === 0 ? `클리어까지 ${Math.max(0, goal - score)}점` : laps < 3 ? `별 ${laps + 1}개까지 ${goal - score}점` : `왕관까지 ${goal - score}점`;
+    g.fillText(label, x0 + w, y + h + 4);
+  }
   function drawClear(now) {
     if (!clearFx) return;
     const k = (now - clearFx.at) / 1800;
@@ -1480,7 +1490,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     g.strokeStyle = 'rgba(214,176,98,.9)'; g.lineWidth = 2; rr(-bw / 2, -bh / 2, bw, bh, 16); g.stroke();
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `700 26px "Gowun Batang", serif`; g.fillStyle = '#f0cf7a';
-    g.fillText(clearFx.laps === 1 ? '스테이지 클리어!' : `${clearFx.laps}번째 클리어!`, 0, -26);
+    g.fillText(clearFx.laps === 1 ? '스테이지 클리어!' : clearFx.laps <= 3 ? `별 ${clearFx.laps}개!` : `왕관 ${clearFx.laps - 3}개!`, 0, -26);
     const n = starsOf(clearFx.laps), crowns = Math.max(0, clearFx.laps - 3);
     g.font = `700 30px "Gowun Batang", serif`;
     const txt = crowns ? `★★★ ♛×${crowns}` : '★★★';
@@ -1495,7 +1505,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     });
     g.textAlign = 'center';
     g.font = `600 14px "IBM Plex Sans KR", sans-serif`; g.fillStyle = 'rgba(246,241,229,.85)';
-    g.fillText(`클리어 보너스 +${clearFx.bonus}`, 0, 44);
+    g.fillText(`${(clearFx.laps * STAGE_GOAL).toLocaleString('ko-KR')}점 달성 · 다음 목표 ${((clearFx.laps + 1) * STAGE_GOAL).toLocaleString('ko-KR')}점`, 0, 44);
     g.restore();
   }
 
@@ -1508,7 +1518,6 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (r.len > 1) { r.state = 'holding'; r.sAt = s; r.fill = 1; b.hold = { i, len: r.len, done: 1, src }; }
     playRow(b, i);
     ensureRows();
-    if (b === boardFor('melody')) checkLap(b);
   }
   function skipRests(b) {
     for (;;) {
@@ -1518,7 +1527,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     }
   }
   function playRow(b, i, counts = true) {
-    if (counts) score++;
+    if (counts) { hits++; addScore(pts()); }
     const n = b.rows[i].note ?? i;
     const acc = song.accomp[n % song.accomp.length];
     if (b.role === 'accomp') playAccomp(acc, 1);
@@ -1546,9 +1555,9 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       while (h.done < h.len && s >= r.sAt + h.done) { if (!song.timeline) playRow(b, h.i + h.done, false); h.done++; }
       if (h.done >= h.len && r.fill >= h.len) {
         // held to the end: the press already scored 1, the hold adds 4 → 5 in total
-        score += HOLD_BONUS - 1;
+        addScore((HOLD_BONUS - 1) * pts());
         r.state = 'done'; r.goneAt = performance.now();
-        evaporateRow(b, h.i); floatText(b, h.i + h.len - 1, `+${HOLD_BONUS}`);
+        evaporateRow(b, h.i); floatText(b, h.i + h.len - 1, `+${HOLD_BONUS * pts()}`);
         b.hold = null;
       }
     });
@@ -1759,32 +1768,70 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   }
 
   // ---------- score board ----------
-  // The higher the score, the flashier the number: red → gold → shimmering
-  // gold → rainbow → glowing rainbow with sparkles → full rainbow pulse.
+  // 13 tiers. Each step up adds something: color → shimmer → glow → outline →
+  // sparkles → embers → light rays → shock rings → edge glow → shake.
   const TIERS = [
-    { at: 0,   label: '' },
-    { at: 25,  label: '좋아요' },
-    { at: 50,  label: '멋져요' },
-    { at: 100, label: '대단해요' },
-    { at: 200, label: '전설' },
-    { at: 400, label: '신' },
+    { at: 0,    label: '' },
+    { at: 15,   label: '좋아요',   pal: ['#f4d688', '#d19a2e', '#9a6a14'], speed: 0,    glow: 'rgba(214,160,60,.55)', blur: 6 },
+    { at: 30,   label: '멋져요',   pal: ['#c8871d', '#f6dc8e', '#e0607a', '#f6dc8e', '#c8871d'], speed: 0.6, glow: 'rgba(214,160,60,.6)', blur: 9, outline: '#fffaf0' },
+    { at: 50,   label: '훌륭해요', pal: ['#1f7a5c', '#5cc9a0', '#d8f5c8', '#5cc9a0', '#1f7a5c'], speed: 0.5, glow: 'rgba(60,180,140,.6)', blur: 10, outline: '#fffaf0' },
+    { at: 75,   label: '대단해요', pal: ['#7e2f42', '#c45d6b', '#eaa08f', '#c45d6b', '#7e2f42'], speed: 0.45, glow: 'rgba(217,139,139,.7)', blur: 12, outline: '#fffaf0', sparkles: 3 },
+    { at: 100,  label: '놀라워요', pal: ['#c2410c', '#fb923c', '#fde68a', '#f472b6', '#c2410c'], speed: 0.6, glow: 'rgba(251,146,60,.75)', blur: 14, outline: '#fffaf0', sparkles: 5 },
+    { at: 150,  label: '환상적',   pal: ['#1e3a8a', '#3b82f6', '#a5f3fc', '#3b82f6', '#1e3a8a'], speed: 0.6, glow: 'rgba(59,130,246,.75)', blur: 16, outline: '#fffaf0', sparkles: 6, rings: true },
+    { at: 200,  label: '전설',     pal: ['#26338f', '#5a4fd0', '#a98cf2', '#e7d3ff', '#5a4fd0', '#26338f'], speed: 0.6, glow: 'rgba(120,100,240,.8)', blur: 18, outline: '#e7c26b', sparkles: 8, rings: true, rays: 10 },
+    { at: 250,  label: '신화',     pal: ['#7f1d1d', '#dc2626', '#f59e0b', '#fde047', '#f59e0b', '#dc2626'], speed: 1.0, glow: 'rgba(245,120,30,.85)', blur: 22, outline: '#fff3c4', sparkles: 8, rings: true, rays: 12, embers: 2 },
+    { at: 300,  label: '신',       pal: ['#7fd8c4', '#a9c8ff', '#d7b8ff', '#ffd1b8', '#fff4d6', '#7fd8c4'], speed: 0.8, glow: 'rgba(255,236,190,.9)', blur: 24, outline: '#fffaf0', rim: '#2b2550', sparkles: 10, rings: true, rays: 14, embers: 2, edge: true },
+    { at: 375,  label: '우주',     pal: ['#0f0c29', '#302b63', '#7c3aed', '#22d3ee', '#f0abfc', '#302b63'], speed: 1.0, glow: 'rgba(168,85,247,.9)', blur: 26, outline: '#e0f2fe', rim: '#0b0a1f', sparkles: 14, rings: true, rays: 16, embers: 3, edge: true },
+    { at: 450,  label: '초월',     pal: ['#fde68a', '#fca5a5', '#c4b5fd', '#93c5fd', '#86efac', '#fde68a'], speed: 1.4, glow: 'rgba(255,255,255,.95)', blur: 30, outline: '#ffffff', rim: '#1f1b3a', sparkles: 16, rings: true, rays: 20, embers: 4, edge: true, shake: 1 },
+    { at: 500, label: '클리어!',     pal: ['#ff6b6b', '#ffd93d', '#6bcB77', '#4d96ff', '#c77dff', '#ff6b6b'], speed: 2.0, glow: 'rgba(255,240,200,1)', blur: 36, outline: '#ffffff', rim: '#140f2a', sparkles: 22, rings: true, rays: 24, embers: 6, edge: true, shake: 2.2 },
   ];
   // Harder songs light up sooner: tier thresholds shrink with the song's level.
   const LEVEL_SCALE = { '왕초보': 1.2, '입문': 1, '쉬움': 0.85, '보통': 0.7, '도전': 0.55, '고수': 0.42, '지옥': 0.3, '하데스': 0.2, '죽음': 0.12 };
-  function tierThreshold(i) {
-    const lvl = (song.by.split('·').pop() || '').trim();
-    const k = LEVEL_SCALE[lvl] || 1;
-    return i === 0 ? 0 : Math.max(i * 2, Math.round(TIERS[i].at * k));
+  function tierThreshold(i) { return TIERS[i].at; }
+  let shownScore = -1, bumpAt = 0, tierAt = 0, lastTier = 0, ringAt = 0;
+  function paletteFill(tr, time, x0, x1, fs, tw) {
+    if (!tr.speed) {
+      const f = g.createLinearGradient(0, -fs / 2, 0, fs / 2);
+      tr.pal.forEach((c, k) => f.addColorStop(k / (tr.pal.length - 1), c));
+      return f;
+    }
+    const off = (time * tr.speed * 0.5) % 1;
+    const f = g.createLinearGradient(x0 - tw * 0.5, -fs / 2, x1 + tw * 0.5, fs / 2);
+    tr.pal.map((c, k) => [((k / (tr.pal.length - 1)) + off) % 1, c]).sort((a, b) => a[0] - b[0])
+      .forEach(([pos, c]) => f.addColorStop(pos, c));
+    return f;
   }
-  let shownScore = -1, bumpAt = 0, tierAt = 0, lastTier = 0;
   function drawScore(now) {
     let tier = 0;
     TIERS.forEach((tr, i) => { if (score >= tierThreshold(i)) tier = i; });
     if (score !== shownScore) { if (score > shownScore) bumpAt = now; shownScore = score; }
-    if (tier !== lastTier) { if (tier > lastTier) tierAt = now; lastTier = tier; }
-    const time = now / 1000, text = String(score);
+    if (tier !== lastTier) { if (tier > lastTier) { tierAt = now; ringAt = now; } lastTier = tier; }
+    const tr = TIERS[tier], time = now / 1000, text = String(score), calm = reduceMotion;
     const fs = Math.round(duo ? Math.min(W * 0.1, 48) : Math.min(W * 0.16, 64));
     const cy = duo ? 20 + fs / 2 : 18 + fs / 2;
+
+    // edge glow around the whole board
+    if (tr.edge && !calm) {
+      const a = 0.18 + 0.12 * Math.sin(time * 3);
+      const c = tr.pal[Math.floor(time * 2) % tr.pal.length];
+      const gw = 26;
+      [[0, 0, W, gw, 0, 0, 0, gw], [0, Hh - gw, W, gw, 0, Hh, 0, Hh - gw], [0, 0, gw, Hh, 0, 0, gw, 0], [W - gw, 0, gw, Hh, W, 0, W - gw, 0]]
+        .forEach(([x, y, w, h, ax, ay, bx, by]) => {
+          const lg = g.createLinearGradient(ax, ay, bx, by);
+          lg.addColorStop(0, c); lg.addColorStop(1, 'rgba(255,255,255,0)');
+          g.globalAlpha = a; g.fillStyle = lg; g.fillRect(x, y, w, h);
+        });
+      g.globalAlpha = 1;
+    }
+    // embers rising from the number
+    if (tr.embers && !calm && mode === 'play') {
+      for (let k = 0; k < tr.embers; k++) if (Math.random() < 0.5) fx.push({
+        kind: 'mote', tone: 'gold', x: W / 2 + (Math.random() - 0.5) * fs * 1.6, y: cy + fs * 0.3, s0: s,
+        vx: (Math.random() - 0.5) * 40, vy: -(40 + Math.random() * 80), size: 4 + Math.random() * 7,
+        sway: Math.random() * 6.28, tw: 10, life: 0.6 + Math.random() * 0.5, t: 0,
+      });
+    }
+
     g.save();
     g.font = `700 ${fs}px "Gowun Batang", serif`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -1793,69 +1840,71 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       const pw = Math.max(fs * 1.4, tw + 24);
       g.fillStyle = COL.wood; rr(W / 2 - pw / 2, 12, pw, fs + 16, (fs + 16) / 2); g.fill();
     }
-    // bump on every point, bigger at higher tiers, and a big pop on reaching a new tier
-    const kick = Math.max(0, 1 - (now - bumpAt) / 160) * (0.08 + tier * 0.035);
-    const pop = Math.max(0, 1 - (now - tierAt) / 600) * 0.5;
-    const pulse = tier >= 5 ? 0.05 * Math.sin(time * 9) : 0;
-    const sc = reduceMotion ? 1 : 1 + kick + pop * Math.sin(Math.min(1, (now - tierAt) / 600) * Math.PI) + pulse;
-    g.translate(W / 2, cy); g.scale(sc, sc);
-    const x0 = -tw / 2, x1 = tw / 2;
-    let fill;
-    if (tier === 0) fill = duo ? COL.brass : 'rgba(156,47,39,.92)';
-    else if (tier === 1) {
-      fill = g.createLinearGradient(0, -fs / 2, 0, fs / 2);
-      fill.addColorStop(0, '#f4d688'); fill.addColorStop(0.55, '#d19a2e'); fill.addColorStop(1, '#9a6a14');
-    } else if (tier === 2) {
-      const off = (time * 0.6) % 1;
-      fill = g.createLinearGradient(x0 - tw, 0, x1 + tw, 0);
-      for (let k = 0; k <= 6; k++) {
-        const pos = (k / 6 + off) % 1;
-        fill.addColorStop(pos, ['#c8871d', '#f6dc8e', '#e0607a', '#f6dc8e', '#c8871d', '#ffe9a8', '#c8871d'][k]);
+    const shake = tr.shake && !calm ? tr.shake : 0;
+    g.translate(W / 2 + (Math.random() - 0.5) * shake, cy + (Math.random() - 0.5) * shake);
+
+    // rotating light rays behind the number
+    if (tr.rays && !calm) {
+      g.save();
+      g.rotate(time * (0.3 + tier * 0.04));
+      const R = fs * (1.4 + 0.1 * Math.sin(time * 3));
+      for (let k = 0; k < tr.rays; k++) {
+        const a0 = (k / tr.rays) * Math.PI * 2, wdt = Math.PI / tr.rays * 0.45;
+        const rg = g.createRadialGradient(0, 0, fs * 0.2, 0, 0, R);
+        rg.addColorStop(0, tr.pal[k % tr.pal.length]); rg.addColorStop(1, 'rgba(255,255,255,0)');
+        g.globalAlpha = 0.28; g.fillStyle = rg;
+        g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0 - wdt, a0 + wdt); g.closePath(); g.fill();
       }
+      g.restore(); g.globalAlpha = 1;
+    }
+    // shock rings: one on reaching the tier, then a steady pulse
+    if (tr.rings && !calm) {
+      const period = tier >= 10 ? 0.45 : tier >= 8 ? 0.7 : 1.0;
+      const k = ((now - ringAt) / 1000 / period) % 1;
+      g.globalAlpha = 0.55 * (1 - k);
+      g.strokeStyle = tr.pal[1]; g.lineWidth = 3 * (1 - k) + 0.5;
+      g.beginPath(); g.ellipse(0, 0, tw * 0.5 + 10 + k * fs, fs * 0.45 + k * fs * 0.7, 0, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = 1;
+    }
+
+    const kick = Math.max(0, 1 - (now - bumpAt) / 160) * (0.08 + tier * 0.02);
+    const pk = Math.min(1, (now - tierAt) / 650);
+    const pop = pk < 1 ? 0.55 * Math.sin(pk * Math.PI) : 0;
+    const pulse = tier >= 9 ? 0.04 * Math.sin(time * (6 + tier)) : 0;
+    const sc = calm ? 1 : 1 + kick + pop + pulse;
+    g.scale(sc, sc);
+
+    if (tier === 0) {
+      g.fillStyle = duo ? COL.brass : 'rgba(156,47,39,.92)';
+      g.fillText(text, 0, 0);
     } else {
-      // curated palettes instead of a raw rainbow: rose gold → sapphire/amethyst → pearl aurora
-      const PAL = {
-        3: ['#7e2f42', '#c45d6b', '#eaa08f', '#c45d6b', '#7e2f42'],
-        4: ['#26338f', '#5a4fd0', '#a98cf2', '#e7d3ff', '#5a4fd0', '#26338f'],
-        5: ['#7fd8c4', '#a9c8ff', '#d7b8ff', '#ffd1b8', '#fff4d6', '#7fd8c4'],
-      }[tier];
-      const off = (time * (tier === 3 ? 0.35 : tier === 4 ? 0.5 : 0.7)) % 1;
-      fill = g.createLinearGradient(x0 - tw * 0.5, -fs / 2, x1 + tw * 0.5, fs / 2);
-      const stops = PAL.map((c, k) => [((k / (PAL.length - 1)) + off) % 1, c]).sort((a, b) => a[0] - b[0]);
-      stops.forEach(([pos, c]) => fill.addColorStop(pos, c));
+      g.shadowColor = tr.glow; g.shadowBlur = tr.blur * (calm ? 0.6 : 1 + 0.15 * Math.sin(time * 5));
+      if (tr.rim) { g.save(); g.shadowBlur = 0; g.lineWidth = 9; g.lineJoin = 'round'; g.strokeStyle = tr.rim; g.strokeText(text, 0, 0); g.restore(); }
+      if (tr.outline) { g.lineWidth = tier >= 7 ? 5 : 3; g.lineJoin = 'round'; g.strokeStyle = tr.outline; g.strokeText(text, 0, 0); }
+      g.fillStyle = paletteFill(tr, time, -tw / 2, tw / 2, fs, tw);
+      g.fillText(text, 0, 0);
+      g.shadowBlur = 0;
     }
-    if (tier >= 3) {
-      g.shadowColor = tier === 3 ? 'rgba(217,139,139,.7)' : tier === 4 ? 'rgba(120,100,240,.75)' : `rgba(255,236,190,${0.75 + 0.2 * Math.sin(time * 4)})`;
-      g.shadowBlur = tier === 3 ? 12 : tier === 4 ? 18 : 24;
-    } else if (tier >= 1) { g.shadowColor = 'rgba(214,160,60,.6)'; g.shadowBlur = 6 + tier * 3; }
-    if (tier >= 5) {
-      // pearl colors need a dark rim to read on the ivory keybed
-      g.save(); g.shadowBlur = 0; g.lineWidth = 9; g.strokeStyle = '#2b2550'; g.lineJoin = 'round';
-      g.strokeText(text, 0, 0); g.restore();
-    }
-    if (tier >= 2) {
-      g.lineWidth = tier >= 4 ? 5 : 3;
-      g.strokeStyle = tier === 4 ? '#e7c26b' : 'rgba(255,250,235,.95)';
-      g.strokeText(text, 0, 0);
-    }
-    g.fillStyle = fill; g.fillText(text, 0, 0);
-    g.shadowBlur = 0;
-    // orbiting sparkles from the 전설 tier up
-    if (tier >= 4 && !reduceMotion) {
-      const n = tier === 4 ? 6 : 10, rx = tw / 2 + 16, ry = fs * 0.55;
+    // orbiting sparkles
+    if (tr.sparkles && !calm) {
+      const n = tr.sparkles, rx = tw / 2 + 16, ry = fs * 0.55;
       for (let k = 0; k < n; k++) {
-        const a = time * (tier === 4 ? 2.2 : 3.4) + (k / n) * Math.PI * 2;
-        const sz = 10 + 6 * Math.sin(time * 7 + k);
+        const ring2 = tier >= 10 && k % 2;
+        const a = time * (1.6 + tier * 0.18) * (ring2 ? -1 : 1) + (k / n) * Math.PI * 2;
+        const sz = 9 + 6 * Math.sin(time * 7 + k);
+        const rxx = ring2 ? rx * 1.25 : rx, ryy = ring2 ? ry * 1.35 : ry;
         g.globalAlpha = 0.9;
-        g.drawImage(SPRITE.gold, Math.cos(a) * rx - sz / 2, Math.sin(a) * ry - sz / 2, sz, sz);
+        g.drawImage(SPRITE[tier >= 6 && k % 3 === 0 ? 'teal' : 'gold'], Math.cos(a) * rxx - sz / 2, Math.sin(a) * ryy - sz / 2, sz, sz);
       }
       g.globalAlpha = 1;
     }
-    // tier caption under the number
+    // tier caption
     if (tier >= 1) {
       g.font = `700 ${Math.round(fs * 0.24)}px "IBM Plex Sans KR", sans-serif`;
-      g.fillStyle = ['', '#b07c1e', '#b07c1e', '#a5505d', '#4a3fb8', '#8a6bc9'][tier];
-      g.fillText(TIERS[tier].label, 0, fs * 0.62);
+      if (tier >= 7) { g.lineWidth = 3; g.strokeStyle = 'rgba(255,250,240,.9)'; g.strokeText(tr.label, 0, fs * 0.64); }
+      g.fillStyle = tier >= 9 ? tr.pal[Math.floor(time * 4) % tr.pal.length] : (tr.pal.length > 2 ? tr.pal[1] : tr.pal[1]);
+      if (tier <= 2) g.fillStyle = '#b07c1e';
+      g.fillText(tr.label, 0, fs * 0.64);
     }
     g.restore();
   }
@@ -1865,12 +1914,13 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     if (!song) return;
     boards.forEach(b => drawBoard(b, now));
     drawFx();
+    if (mode !== 'menu') drawProgress(now);
     drawClear(now);
     if (mode !== 'menu') drawScore(now);
     if (mode === 'play' || mode === 'fail') {
       g.font = `600 13px "IBM Plex Sans KR", sans-serif`;
       g.textAlign = 'left'; g.fillStyle = 'rgba(60,40,30,.6)';
-      g.fillText(`♩ = ${Math.round(rps() * 30)}`, 10, 12);
+      g.fillText(`♩ = ${Math.round(rps() * 30)}`, 10, 15);
     }
   }
 
@@ -1901,7 +1951,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
 
   let menuKind = 'piano';
   const LEDE = {
-    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 긴 건반은 끝까지 꾹 누르면 음이 이어지고 5점이에요. 반주는 위의 ‘반주’ 버튼으로 켤 수 있어요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
+    piano: '떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 긴 건반은 끝까지 꾹 누르면 5점, 500점을 모으면 스테이지 클리어예요. 반주는 위의 ‘반주’ 버튼으로 켤 수 있어요. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.',
     drum: '네 줄이 각각 드럼 하나예요. 떨어지는 패드를 순서대로 치면 비트가 완성됩니다. 놓치거나 빈 칸을 치면 끝나요.',
     duo: '왼쪽 사람은 반주(왼손), 오른쪽 사람은 멜로디(오른손)를 맡아요. 둘이 박자를 맞춰야 곡이 완성되고, 한 명이라도 놓치면 끝나요.',
   };
