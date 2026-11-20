@@ -107,6 +107,23 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .shop-item .cnt { font-size: .78rem; color: #f0cf7a; font-weight: 600; }
 #shopTabs { flex-wrap: wrap; justify-content: center; border-radius: 18px; max-width: 100%; }
 #shopTabs button { padding: 6px 14px; }
+.rank-list { list-style: none; margin: 0; padding: 0; width: 100%; max-width: 360px; display: grid; gap: 6px; }
+.rank-list li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--wood-2) 80%, transparent); border: 1px solid color-mix(in srgb, var(--brass) 25%, transparent); text-align: left; }
+.rank-list li.me { border-color: var(--brass); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brass) 35%, transparent); }
+.rank-list .no { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .85rem;
+  background: rgba(255,255,255,.08); color: var(--text); font-variant-numeric: tabular-nums; }
+.rank-list li:nth-child(1) .no { background: linear-gradient(#f7dc8a, #c9971f); color: #3a2506; }
+.rank-list li:nth-child(2) .no { background: linear-gradient(#eef0f3, #a9aeb6); color: #2b2e33; }
+.rank-list li:nth-child(3) .no { background: linear-gradient(#f0b98a, #a8622b); color: #2e1606; }
+.rank-list .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.rank-list .who small { display: block; font-weight: 400; color: var(--muted); font-size: .72rem; }
+.rank-list .val { font-variant-numeric: tabular-nums; color: #f0cf7a; font-weight: 700; text-align: right; }
+.rank-list .val small { display: block; color: var(--muted); font-weight: 400; font-size: .72rem; }
+.rank-empty { color: var(--muted); font-size: .9rem; padding: 12px; }
+.rank-select { font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 999px; max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent); background: rgba(0,0,0,.25); color: var(--text); }
+.rank-note { font-size: .95rem; color: #f0cf7a; font-weight: 600; min-height: 1.2em; }
 .code-row { display: flex; gap: 8px; align-items: center; width: 100%; max-width: 320px; }
 .code-row label { font-size: .8rem; color: var(--muted); }
 .code-row input { flex: 1; min-width: 0; font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 999px;
@@ -155,7 +172,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     <div class="overlay" id="menu">
       <div class="eyebrow" id="menuEyebrow">4 LANES · BLACK KEYS ONLY</div>
       <h1>건반 소나기</h1>
-      <div class="row wallet-row"><div class="wallet" id="wallet"></div><button type="button" id="shopBtn">상점</button></div>
+      <div class="row wallet-row"><div class="wallet" id="wallet"></div><button type="button" id="shopBtn">상점</button><button type="button" id="rankBtn">순위</button></div>
       <div class="row">
       <div class="tabs" role="group" aria-label="게임 종류">
         <button type="button" id="tabPiano" aria-pressed="true">피아노</button>
@@ -173,6 +190,23 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       <p class="lede" id="menuLede">떨어지는 검은 건반을 순서대로 누르면 곡이 연주됩니다. 흰 칸을 누르거나 검은 건반을 놓치면 끝나요.</p>
       <div class="chips" id="levelChips" role="group" aria-label="난이도"></div>
       <div class="songs" id="songs"></div>
+    </div>
+    <div class="overlay" id="rank" hidden>
+      <div class="eyebrow">이 기기에서 플레이한 기록</div>
+      <h2>순위</h2>
+      <form class="code-row" id="nameForm" autocomplete="off">
+        <label for="nameInput">내 이름</label>
+        <input id="nameInput" type="text" maxlength="12" placeholder="이름을 입력하세요">
+        <button type="submit">저장</button>
+      </form>
+      <div class="tabs" role="group" aria-label="순위 종류">
+        <button type="button" id="rankTabAll" aria-pressed="true">전체 랭킹</button>
+        <button type="button" id="rankTabSong" aria-pressed="false">곡별 순위</button>
+      </div>
+      <select id="rankSong" class="rank-select" aria-label="곡 고르기" hidden></select>
+      <ol class="rank-list" id="rankList"></ol>
+      <p class="shop-msg" id="rankMsg" role="status"></p>
+      <button class="primary" id="rankClose" type="button">돌아가기</button>
     </div>
     <div class="overlay" id="shop" hidden>
       <div class="eyebrow">포인트로 꾸미기</div>
@@ -192,6 +226,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       <div class="eyebrow" id="overReason">놓쳤어요</div>
       <div class="big" id="overScore">0</div>
       <div class="stars" id="overStars" aria-label="스테이지 별"></div>
+      <div class="rank-note" id="overRank"></div>
       <div class="stats">
         <div><b id="overBest">0</b>최고 기록</div>
         <div><b id="overPts">+0</b>얻은 포인트</div>
@@ -200,6 +235,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       <div class="row">
         <button class="primary" id="retryBtn" type="button">다시 연주</button>
         <button id="changeBtn" type="button">곡 바꾸기</button>
+        <button id="overRankBtn" type="button">순위 보기</button>
       </div>
     </div>
   </main>
@@ -1773,6 +1809,86 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     } else $('shopMsg').textContent = v.trim() ? '코드가 맞지 않아요.' : '코드를 입력해 주세요.';
     renderShop();
   });
+  // ---------- ranking (local to this browser) ----------
+  const ranks = {
+    load() { try { return JSON.parse(localStorage.getItem('keyshower:ranks') || '{}'); } catch { return {}; } },
+    save(r) { try { localStorage.setItem('keyshower:ranks', JSON.stringify(r)); } catch {} },
+  };
+  const playerName = () => { try { return localStorage.getItem('keyshower:name') || '플레이어'; } catch { return '플레이어'; } };
+  // returns the 1-based place of this run in the song's top 10 (0 if it didn't make it)
+  function recordRun(key, entry) {
+    const r = ranks.load();
+    const list = r.songs?.[key] || [];
+    list.push(entry);
+    list.sort((a, b) => b.score - a.score || a.at - b.at);
+    const top = list.slice(0, 10);
+    const place = top.indexOf(entry) + 1;
+    r.songs = r.songs || {}; r.songs[key] = top;
+    r.players = r.players || {};
+    const pl = r.players[entry.name] || { points: 0, clears: 0, games: 0, best: 0 };
+    pl.points += entry.score; pl.clears += entry.laps; pl.games += 1; pl.best = Math.max(pl.best, entry.score);
+    r.players[entry.name] = pl;
+    r.recent = [key, ...(r.recent || []).filter(k => k !== key)].slice(0, 60);
+    ranks.save(r);
+    return place;
+  }
+  const songByKey = key => [...SONGS, ...DRUMS].find(sg => key.split(':')[0] === sg.id);
+  const keyLabel = key => {
+    const sg = songByKey(key); const tags = key.split(':').slice(1).map(x => x === 'duo' ? '2인' : x === 'tap' ? '긴 건반 없음' : x);
+    return sg ? `${sg.name}${tags.length ? ' · ' + tags.join(' · ') : ''}` : key;
+  };
+  let rankView = 'all', rankKey = '';
+  function li(no, who, sub, val, valSub, me) {
+    const el = document.createElement('li'); if (me) el.className = 'me';
+    el.innerHTML = `<span class="no"></span><span class="who"><span class="n"></span><small></small></span><span class="val"><span class="v"></span><small></small></span>`;
+    el.querySelector('.no').textContent = no;
+    el.querySelector('.n').textContent = who; el.querySelector('.who small').textContent = sub;
+    el.querySelector('.v').textContent = val; el.querySelector('.val small').textContent = valSub;
+    return el;
+  }
+  function renderRank() {
+    const r = ranks.load(), list = $('rankList'), me = playerName();
+    $('nameInput').value = me === '플레이어' ? '' : me;
+    $('rankTabAll').setAttribute('aria-pressed', String(rankView === 'all'));
+    $('rankTabSong').setAttribute('aria-pressed', String(rankView === 'song'));
+    const sel = $('rankSong'); sel.hidden = rankView !== 'song';
+    list.textContent = '';
+    const empty = msg => { const e = document.createElement('li'); e.className = 'rank-empty'; e.style.display = 'block'; e.textContent = msg; list.appendChild(e); };
+    if (rankView === 'all') {
+      const rows = Object.entries(r.players || {}).sort((a, b) => b[1].points - a[1].points).slice(0, 20);
+      if (!rows.length) return empty('아직 기록이 없어요. 한 판 하고 오세요!');
+      rows.forEach(([name, pl], k) => list.appendChild(li(k + 1, name, `${pl.games}판 · 클리어 ${pl.clears}번 · 최고 ${pl.best.toLocaleString('ko-KR')}점`,
+        pl.points.toLocaleString('ko-KR'), '누적 점수', name === me)));
+    } else {
+      const keys = (r.recent || []).filter(k => r.songs?.[k]?.length);
+      sel.textContent = '';
+      keys.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = keyLabel(k); sel.appendChild(o); });
+      if (!keys.length) { sel.hidden = true; return empty('아직 기록이 없어요. 한 판 하고 오세요!'); }
+      if (!keys.includes(rankKey)) rankKey = keys[0];
+      sel.value = rankKey;
+      r.songs[rankKey].forEach((en, k) => list.appendChild(li(k + 1, en.name,
+        `${'★'.repeat(Math.min(3, en.laps))}${'☆'.repeat(Math.max(0, 3 - en.laps))} · ${new Date(en.at).toLocaleDateString('ko-KR')}`,
+        en.score.toLocaleString('ko-KR'), '점', en.name === me)));
+    }
+  }
+  function openRank(view, key) {
+    menu.hidden = true; over.hidden = true; $('shop').hidden = true; $('rank').hidden = false;
+    if (view) rankView = view; if (key) rankKey = key;
+    $('rankMsg').textContent = ''; renderRank();
+  }
+  $('rankBtn').addEventListener('click', () => openRank());
+  $('rankClose').addEventListener('click', () => { $('rank').hidden = true; showMenu(); });
+  $('rankTabAll').addEventListener('click', () => { rankView = 'all'; renderRank(); });
+  $('rankTabSong').addEventListener('click', () => { rankView = 'song'; renderRank(); });
+  $('rankSong').addEventListener('change', e => { rankKey = e.target.value; renderRank(); });
+  $('nameForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('nameInput').value.trim().slice(0, 12);
+    try { localStorage.setItem('keyshower:name', v || '플레이어'); } catch {}
+    $('rankMsg').textContent = v ? `${v}${josa(v, '으로', '로')} 저장했어요. 다음 판부터 이 이름으로 기록돼요.` : '이름을 지웠어요. ‘플레이어’로 기록돼요.';
+    renderRank();
+  });
+
   function openShop() { menu.hidden = true; $('shop').hidden = false; $('shopMsg').textContent = ''; renderShop(); }
   function closeShop() { $('shop').hidden = true; showMenu(); }
   function drawBoostHud() {
@@ -1982,6 +2098,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
     const bestLaps = Math.max(store.get('laps:' + id), laps);
     store.set('laps:' + id, bestLaps);
     wallet.add(score);
+    const place = score > 0 ? recordRun(id, { name: playerName(), score, laps, at: Date.now() }) : 0;
     clearTimeout(overTimer);
     overTimer = setTimeout(() => {
       $('overReason').textContent = duo ? `${b.name} 쪽이 ${reason}` : reason;
@@ -1991,6 +2108,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       $('overPts').textContent = `+${score.toLocaleString('ko-KR')}`;
       $('overStars').innerHTML = laps ? starHTML(starsOf(laps), Math.max(0, laps - 3)) : starHTML(0, 0);
       $('overReason').textContent = (laps ? '스테이지 클리어 · ' : '') + $('overReason').textContent;
+      $('overRank').textContent = place ? (place === 1 ? `이 곡 1위! (${playerName()})` : `이 곡 ${place}위 (${playerName()})`) : '';
       mode = 'over'; over.hidden = false;
       $('retryBtn').focus({ preventScroll: true });
     }, 1100);
@@ -2423,7 +2541,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   function showMenu() {
     showWallet();
     clearTimeout(overTimer);
-    mode = 'menu'; over.hidden = true; menu.hidden = false;
+    mode = 'menu'; over.hidden = true; menu.hidden = false; $('rank').hidden = true; $('shop').hidden = true;
     renderSongs();
   }
   let levelFilter = '전체';
@@ -2465,7 +2583,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
       box.appendChild(b);
     });
   }
-  $('menuBtn').addEventListener('click', () => { $('shop').hidden = true; showMenu(); });
+  $('menuBtn').addEventListener('click', () => { $('shop').hidden = true; $('rank').hidden = true; showMenu(); });
   $('shopBtn').addEventListener('click', openShop);
   $('shopClose').addEventListener('click', closeShop);
   // Solo accompaniment is off unless the player turns it on (remembered per browser).
@@ -2507,6 +2625,7 @@ kbd { font-family: var(--ui); border: 1px solid color-mix(in srgb, var(--muted) 
   setHolds(holdsOn);
   $('tabDuo').addEventListener('click', () => setDuo(true));
   $('changeBtn').addEventListener('click', showMenu);
+  $('overRankBtn').addEventListener('click', () => openRank('song', recordId()));
   $('retryBtn').addEventListener('click', () => { audio(); newGame(); });
 
   new ResizeObserver(resize).observe(stage);
